@@ -25,7 +25,7 @@ The same checks run in CI on every push and pull request.
 
 | Command | What it does |
 | --- | --- |
-| `npm run lint` | Lint and format check with [Biome](https://biomejs.dev) |
+| `npm run lint` | Lint and format check with [Biome](https://biomejs.dev); warnings fail the check |
 | `npm run format` | Apply Biome's safe fixes and formatting |
 | `npm run typecheck` | Type check with `tsc --noEmit` |
 | `npm test` | Run the [Vitest](https://vitest.dev) unit tests |

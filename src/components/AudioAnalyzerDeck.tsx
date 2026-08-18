@@ -2,6 +2,8 @@ import { AlertCircle, Mic, Sparkles, Trash2, Upload } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { analyzeAudioBuffer } from "../lib/audioAnalysis";
+import { createAudioContext } from "../lib/audioContext";
+import { getErrorMessage } from "../lib/errors";
 import { formatSecs } from "../lib/format";
 import type { AudioFeatures } from "../types";
 
@@ -74,7 +76,7 @@ export default function AudioAnalyzerDeck({
 
       // Convert file to ArrayBuffer for Web Audio Decoding
       const arrayBuffer = await file.arrayBuffer();
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioCtx = createAudioContext();
 
       let decodedBuffer: AudioBuffer;
       try {
@@ -92,9 +94,9 @@ export default function AudioAnalyzerDeck({
       const base64Data = await convertBufferToBase64(file);
 
       onAnalysisComplete(features, base64Data, file.type, decodedBuffer);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setError(err.message || "An error occurred while analyzing the audio file.");
+      setError(getErrorMessage(err, "An error occurred while analyzing the audio file."));
     } finally {
       setLoading(false);
     }
@@ -144,7 +146,7 @@ export default function AudioAnalyzerDeck({
           });
 
           const arrayBuffer = await recordingFile.arrayBuffer();
-          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const audioCtx = createAudioContext();
           const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
           const features = analyzeAudioBuffer(
@@ -156,7 +158,7 @@ export default function AudioAnalyzerDeck({
           const base64Data = await convertBufferToBase64(recordingFile);
 
           onAnalysisComplete(features, base64Data, recordingFile.type, decodedBuffer);
-        } catch (err: any) {
+        } catch (err) {
           console.error("Recording process failure: ", err);
           setError("Microphone processing failed. Try uploading a file instead.");
         } finally {
@@ -170,7 +172,7 @@ export default function AudioAnalyzerDeck({
       timerRef.current = setInterval(() => {
         setRecordTime((prev) => prev + 1);
       }, 1000);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       setError("Microphone permission denied or source unavailable.");
     }

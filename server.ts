@@ -1,8 +1,9 @@
 import path from "node:path";
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, type Part, Type } from "@google/genai";
 import dotenv from "dotenv";
 import express, { type Request, type Response } from "express";
 import { createServer as createViteServer } from "vite";
+import { getErrorMessage } from "./src/lib/errors";
 
 dotenv.config();
 
@@ -36,7 +37,7 @@ async function startServer() {
       console.log(`Analyzing audio file: ${features.fileName} (${features.fileSize} bytes)`);
 
       // Assemble content parts
-      const parts: any[] = [];
+      const parts: Part[] = [];
 
       // If we got raw audio as base64, include it so Gemini can naturally review / hear sound problems
       if (base64Audio && mimeType) {
@@ -195,11 +196,11 @@ TASK:
 
       const cleanJson = JSON.parse(result.text.trim());
       res.json(cleanJson);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Gemini audio analysis error:", error);
-      res
-        .status(500)
-        .json({ error: error.message || "Failed to process audio analysis via Gemini." });
+      res.status(500).json({
+        error: getErrorMessage(error, "Failed to process audio analysis via Gemini."),
+      });
     }
   });
 
@@ -293,11 +294,11 @@ Recalculate the parameters to perfectly accommodate the user's feedback.
 
       const cleanJson = JSON.parse(result.text.trim());
       res.json(cleanJson);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Gemini refinement error:", error);
-      res
-        .status(500)
-        .json({ error: error.message || "Failed to refine mastering plan via Gemini." });
+      res.status(500).json({
+        error: getErrorMessage(error, "Failed to refine mastering plan via Gemini."),
+      });
     }
   });
 

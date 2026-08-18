@@ -30,6 +30,14 @@
       "tailwindDirectives": true
     }
   },
+  "overrides": [
+    {
+      // The report renderer emits one node per source line; the list is rebuilt from scratch on
+      // every render and never reordered, so the line index is a stable identity.
+      "includes": ["src/components/MarkdownReport.tsx"],
+      "linter": { "rules": { "suspicious": { "noArrayIndexKey": "off" } } }
+    }
+  ],
   "assist": {
     "enabled": true,
     "actions": {

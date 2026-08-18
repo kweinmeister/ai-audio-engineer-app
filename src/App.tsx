@@ -14,6 +14,8 @@ import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import AudioAnalyzerDeck from "./components/AudioAnalyzerDeck";
 import MarkdownReport from "./components/MarkdownReport";
+import { createAudioContext } from "./lib/audioContext";
+import { getErrorMessage } from "./lib/errors";
 import { formatBytes, formatSecs } from "./lib/format";
 import type { AnalyzeResponse, AudioFeatures, MasteringPlan } from "./types";
 
@@ -141,9 +143,12 @@ export default function App() {
 
       // Instantly inject AI coefficients to Web Audio filters
       updateDspNodeParameters(data.masteringPlan, isDspActive);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setAnalyzingState({ loading: false, error: err.message || "Could not analyze the audio." });
+      setAnalyzingState({
+        loading: false,
+        error: getErrorMessage(err, "Could not analyze the audio."),
+      });
     } finally {
       setAnalyzingState((prev) => ({ ...prev, loading: false }));
     }
@@ -185,7 +190,7 @@ export default function App() {
   // Build the live Web Audio Master Chain:
   // Source -> High-pass filter -> Low-pass filter -> Bass EQ -> Mid EQ -> Treble EQ -> Compressor -> Makeup Gain -> Spectral Analyser -> Output Destination
   const initAudioChain = async (_buffer: AudioBuffer) => {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const ctx = createAudioContext();
     audioContextRef.current = ctx;
 
     const highpass = ctx.createBiquadFilter();
@@ -439,7 +444,9 @@ export default function App() {
       await initAudioChain(rawAudioBuffer);
     }
 
-    const ctx = audioContextRef.current!;
+    const ctx = audioContextRef.current;
+    if (!ctx) return;
+
     if (ctx.state === "suspended") {
       await ctx.resume();
     }
@@ -528,7 +535,9 @@ export default function App() {
         sourceNodeRef.current = null;
       }
 
-      const ctx = audioContextRef.current!;
+      const ctx = audioContextRef.current;
+      if (!ctx) return;
+
       const sourceNode = ctx.createBufferSource();
       sourceNode.buffer = rawAudioBuffer;
       sourceNode.connect(highpassNodeRef.current || ctx.destination);
@@ -582,9 +591,12 @@ export default function App() {
         updateDspNodeParameters(data.masteringPlan, isDspActive);
       }
       setUserFeedback("");
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setRefinementState({ loading: false, error: err.message || "Failed to refine plan." });
+      setRefinementState({
+        loading: false,
+        error: getErrorMessage(err, "Failed to refine plan."),
+      });
     } finally {
       setRefinementState((prev) => ({ ...prev, loading: false }));
     }
