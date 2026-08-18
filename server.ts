@@ -1,8 +1,9 @@
-import express, { Request, Response } from "express";
-import path from "path";
+import path from "node:path";
+import { GoogleGenAI, type Part, Type } from "@google/genai";
 import dotenv from "dotenv";
-import { GoogleGenAI, Type } from "@google/genai";
+import express, { type Request, type Response } from "express";
 import { createServer as createViteServer } from "vite";
+import { getErrorMessage } from "./src/lib/errors";
 
 dotenv.config();
 
@@ -11,9 +12,9 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
   httpOptions: {
     headers: {
-      'User-Agent': 'aistudio-build',
-    }
-  }
+      "User-Agent": "aistudio-build",
+    },
+  },
 });
 
 async function startServer() {
@@ -36,15 +37,15 @@ async function startServer() {
       console.log(`Analyzing audio file: ${features.fileName} (${features.fileSize} bytes)`);
 
       // Assemble content parts
-      const parts: any[] = [];
-      
+      const parts: Part[] = [];
+
       // If we got raw audio as base64, include it so Gemini can naturally review / hear sound problems
       if (base64Audio && mimeType) {
         parts.push({
           inlineData: {
             mimeType: mimeType,
-            data: base64Audio
-          }
+            data: base64Audio,
+          },
         });
       }
 
@@ -67,49 +68,117 @@ TASK:
 1. Provide a professional assessment score (0-100) reflecting recording quality (background noise, mic proximity, frequency balance).
 2. Critique key acoustic items: high-frequency noise (hiss), low-frequency resonance/sub hum (hum), saturation (clipping), volume stability (dynamic range), and raw room comments.
 3. Design a targeted corrective Mastering Plan containing precise Web Audio API DSP parameters to clean, boost, and polish this audio.
-4. Provide a beautifully written Markdown Report summarizing findings and explains how the mastering chain solves the issues.`
+4. Provide a beautifully written Markdown Report summarizing findings and explains how the mastering chain solves the issues.`,
       });
 
       const responseSchema = {
         type: Type.OBJECT,
         properties: {
-          score: { type: Type.INTEGER, description: "Audio Quality Score from 0 (very poor) to 100 (professional studio level)." },
+          score: {
+            type: Type.INTEGER,
+            description:
+              "Audio Quality Score from 0 (very poor) to 100 (professional studio level).",
+          },
           critique: {
             type: Type.OBJECT,
             properties: {
               hiss: { type: Type.STRING, description: "Analysis of high frequency noise/hiss." },
-              hum: { type: Type.STRING, description: "Analysis of low frequency rumbling or humming." },
-              clipping: { type: Type.STRING, description: "Analysis of clipping, distortion, or oversaturation levels." },
-              dynamicRange: { type: Type.STRING, description: "Analysis of dynamics, consistency, and volume variance." },
-              generalComments: { type: Type.STRING, description: "General summary comments about raw recording context and gear." },
+              hum: {
+                type: Type.STRING,
+                description: "Analysis of low frequency rumbling or humming.",
+              },
+              clipping: {
+                type: Type.STRING,
+                description: "Analysis of clipping, distortion, or oversaturation levels.",
+              },
+              dynamicRange: {
+                type: Type.STRING,
+                description: "Analysis of dynamics, consistency, and volume variance.",
+              },
+              generalComments: {
+                type: Type.STRING,
+                description: "General summary comments about raw recording context and gear.",
+              },
             },
-            required: ["hiss", "hum", "clipping", "dynamicRange", "generalComments"]
+            required: ["hiss", "hum", "clipping", "dynamicRange", "generalComments"],
           },
           masteringPlan: {
             type: Type.OBJECT,
             properties: {
-              gainDb: { type: Type.NUMBER, description: "Overall level makeup gain (e.g. +3 or -1 dB). Default is 0." },
-              highpassHz: { type: Type.INTEGER, description: "Low-cut high-pass filter frequency in Hz. Suggested range of 20-150Hz. Set to 0 if no mud is present." },
-              lowpassHz: { type: Type.INTEGER, description: "High-cut low-pass filter frequency in Hz to clear hiss. Set to 20000 to bypass." },
-              eqBassHz: { type: Type.INTEGER, description: "Center frequency for bass peaking/shelving EQ. E.g., 80 or 100." },
-              eqBassGain: { type: Type.NUMBER, description: "Bass EQ gain in dB. Limit range from -10 to +10." },
-              eqMidHz: { type: Type.INTEGER, description: "Center frequency for vocal/mud peaking EQ (typically 800-2000Hz)." },
-              eqMidGain: { type: Type.NUMBER, description: "Mid EQ gain in dB. Limit range from -10 to +10." },
-              eqTrebleHz: { type: Type.INTEGER, description: "Center frequency for treble peaking/shelving EQ. E.g., 8000 or 12000." },
-              eqTrebleGain: { type: Type.NUMBER, description: "Treble EQ gain in dB. Limit range from -10 to +10." },
-              compressorThreshold: { type: Type.NUMBER, description: "Compression threshold in dBFS (e.g., -15 to -35). Default is -20." },
-              compressorRatio: { type: Type.NUMBER, description: "Compression ratio. E.g. 1.5 to 4.0. Set to 1.0 to skip compressing." },
-              verbDescription: { type: Type.STRING, description: "An encouraging engineer description of exactly how this mastering plan polishes the sound." }
+              gainDb: {
+                type: Type.NUMBER,
+                description: "Overall level makeup gain (e.g. +3 or -1 dB). Default is 0.",
+              },
+              highpassHz: {
+                type: Type.INTEGER,
+                description:
+                  "Low-cut high-pass filter frequency in Hz. Suggested range of 20-150Hz. Set to 0 if no mud is present.",
+              },
+              lowpassHz: {
+                type: Type.INTEGER,
+                description:
+                  "High-cut low-pass filter frequency in Hz to clear hiss. Set to 20000 to bypass.",
+              },
+              eqBassHz: {
+                type: Type.INTEGER,
+                description: "Center frequency for bass peaking/shelving EQ. E.g., 80 or 100.",
+              },
+              eqBassGain: {
+                type: Type.NUMBER,
+                description: "Bass EQ gain in dB. Limit range from -10 to +10.",
+              },
+              eqMidHz: {
+                type: Type.INTEGER,
+                description: "Center frequency for vocal/mud peaking EQ (typically 800-2000Hz).",
+              },
+              eqMidGain: {
+                type: Type.NUMBER,
+                description: "Mid EQ gain in dB. Limit range from -10 to +10.",
+              },
+              eqTrebleHz: {
+                type: Type.INTEGER,
+                description:
+                  "Center frequency for treble peaking/shelving EQ. E.g., 8000 or 12000.",
+              },
+              eqTrebleGain: {
+                type: Type.NUMBER,
+                description: "Treble EQ gain in dB. Limit range from -10 to +10.",
+              },
+              compressorThreshold: {
+                type: Type.NUMBER,
+                description: "Compression threshold in dBFS (e.g., -15 to -35). Default is -20.",
+              },
+              compressorRatio: {
+                type: Type.NUMBER,
+                description: "Compression ratio. E.g. 1.5 to 4.0. Set to 1.0 to skip compressing.",
+              },
+              verbDescription: {
+                type: Type.STRING,
+                description:
+                  "An encouraging engineer description of exactly how this mastering plan polishes the sound.",
+              },
             },
             required: [
-              "gainDb", "highpassHz", "lowpassHz", "eqBassHz", "eqBassGain",
-              "eqMidHz", "eqMidGain", "eqTrebleHz", "eqTrebleGain",
-              "compressorThreshold", "compressorRatio", "verbDescription"
-            ]
+              "gainDb",
+              "highpassHz",
+              "lowpassHz",
+              "eqBassHz",
+              "eqBassGain",
+              "eqMidHz",
+              "eqMidGain",
+              "eqTrebleHz",
+              "eqTrebleGain",
+              "compressorThreshold",
+              "compressorRatio",
+              "verbDescription",
+            ],
           },
-          reportMarkdown: { type: Type.STRING, description: "Comprehensive client report explaining technical findings." }
+          reportMarkdown: {
+            type: Type.STRING,
+            description: "Comprehensive client report explaining technical findings.",
+          },
         },
-        required: ["score", "critique", "masteringPlan", "reportMarkdown"]
+        required: ["score", "critique", "masteringPlan", "reportMarkdown"],
       };
 
       const result = await ai.models.generateContent({
@@ -117,8 +186,8 @@ TASK:
         contents: parts,
         config: {
           responseMimeType: "application/json",
-          responseSchema: responseSchema
-        }
+          responseSchema: responseSchema,
+        },
       });
 
       if (!result.text) {
@@ -127,9 +196,11 @@ TASK:
 
       const cleanJson = JSON.parse(result.text.trim());
       res.json(cleanJson);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Gemini audio analysis error:", error);
-      res.status(500).json({ error: error.message || "Failed to process audio analysis via Gemini." });
+      res.status(500).json({
+        error: getErrorMessage(error, "Failed to process audio analysis via Gemini."),
+      });
     }
   });
 
@@ -187,16 +258,25 @@ Recalculate the parameters to perfectly accommodate the user's feedback.
               eqTrebleGain: { type: Type.NUMBER },
               compressorThreshold: { type: Type.NUMBER },
               compressorRatio: { type: Type.NUMBER },
-              verbDescription: { type: Type.STRING }
+              verbDescription: { type: Type.STRING },
             },
             required: [
-              "gainDb", "highpassHz", "lowpassHz", "eqBassHz", "eqBassGain",
-              "eqMidHz", "eqMidGain", "eqTrebleHz", "eqTrebleGain",
-              "compressorThreshold", "compressorRatio", "verbDescription"
-            ]
-          }
+              "gainDb",
+              "highpassHz",
+              "lowpassHz",
+              "eqBassHz",
+              "eqBassGain",
+              "eqMidHz",
+              "eqMidGain",
+              "eqTrebleHz",
+              "eqTrebleGain",
+              "compressorThreshold",
+              "compressorRatio",
+              "verbDescription",
+            ],
+          },
         },
-        required: ["masteringPlan"]
+        required: ["masteringPlan"],
       };
 
       const result = await ai.models.generateContent({
@@ -204,8 +284,8 @@ Recalculate the parameters to perfectly accommodate the user's feedback.
         contents: prompt,
         config: {
           responseMimeType: "application/json",
-          responseSchema: refineResponseSchema
-        }
+          responseSchema: refineResponseSchema,
+        },
       });
 
       if (!result.text) {
@@ -214,9 +294,11 @@ Recalculate the parameters to perfectly accommodate the user's feedback.
 
       const cleanJson = JSON.parse(result.text.trim());
       res.json(cleanJson);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Gemini refinement error:", error);
-      res.status(500).json({ error: error.message || "Failed to refine mastering plan via Gemini." });
+      res.status(500).json({
+        error: getErrorMessage(error, "Failed to refine mastering plan via Gemini."),
+      });
     }
   });
 
@@ -230,10 +312,10 @@ Recalculate the parameters to perfectly accommodate the user's feedback.
     app.use(vite.middlewares);
   } else {
     console.log("Serving production static built assets...");
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get('*', (req: Request, res: Response) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get("*", (_req: Request, res: Response) => {
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 

@@ -1,11 +1,23 @@
-import React, { useState, useRef, useEffect } from "react";
-import { 
-  Volume2, Play, Pause, TrendingUp, Sparkles, Sliders, Activity, 
-  Send, ShieldAlert, Check, HelpCircle, FileText, Settings, Radio,
-  ChevronRight, ArrowUpRight, Maximize2, Trash, CheckSquare
+import {
+  Activity,
+  FileText,
+  Pause,
+  Play,
+  Radio,
+  Send,
+  ShieldAlert,
+  Sliders,
+  Sparkles,
+  Trash,
 } from "lucide-react";
+import type React from "react";
+import { useEffect, useRef, useState } from "react";
 import AudioAnalyzerDeck from "./components/AudioAnalyzerDeck";
-import { AudioFeatures, AnalyzeResponse, MasteringPlan } from "./types";
+import MarkdownReport from "./components/MarkdownReport";
+import { createAudioContext } from "./lib/audioContext";
+import { getErrorMessage } from "./lib/errors";
+import { formatBytes, formatSecs } from "./lib/format";
+import type { AnalyzeResponse, AudioFeatures, MasteringPlan } from "./types";
 
 const defaultMasteringPlan: MasteringPlan = {
   gainDb: 0,
@@ -19,21 +31,22 @@ const defaultMasteringPlan: MasteringPlan = {
   eqTrebleGain: 0,
   compressorThreshold: -24,
   compressorRatio: 1.0,
-  verbDescription: "Neutral flat reference mastering scheme. Bypass is currently active or no corrective coefficients are calculated yet."
+  verbDescription:
+    "Neutral flat reference mastering scheme. Bypass is currently active or no corrective coefficients are calculated yet.",
 };
 
 export default function App() {
   // Primary raw audio states
   const [rawAudioFeatures, setRawAudioFeatures] = useState<AudioFeatures | null>(null);
-  const [base64AudioData, setBase64AudioData] = useState<string>("");
-  const [mimeType, setMimeType] = useState<string>("");
+  const [_base64AudioData, setBase64AudioData] = useState<string>("");
+  const [_mimeType, setMimeType] = useState<string>("");
   const [rawAudioBuffer, setRawAudioBuffer] = useState<AudioBuffer | null>(null);
 
   // Analysis result
   const [analysisResponse, setAnalysisResponse] = useState<AnalyzeResponse | null>(null);
   const [analyzingState, setAnalyzingState] = useState<{ loading: boolean; error: string | null }>({
     loading: false,
-    error: null
+    error: null,
   });
 
   // Active DSP settings (modified either by Gemini or manually by the user on the bento controls!)
@@ -42,13 +55,18 @@ export default function App() {
 
   // Refinement feedback states
   const [userFeedback, setUserFeedback] = useState<string>("");
-  const [refinementState, setRefinementState] = useState<{ loading: boolean; error: string | null }>({
+  const [refinementState, setRefinementState] = useState<{
+    loading: boolean;
+    error: string | null;
+  }>({
     loading: false,
-    error: null
+    error: null,
   });
 
   // Interactive UI tab management
-  const [activeReportTab, setActiveReportTab] = useState<"critique" | "markdown" | "studio">("critique");
+  const [activeReportTab, setActiveReportTab] = useState<"critique" | "markdown" | "studio">(
+    "critique",
+  );
 
   // Web Audio Context & Node Refs
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -88,10 +106,10 @@ export default function App() {
 
   // Decoded sample analysis wrapper
   const handleAnalysisComplete = async (
-    features: AudioFeatures, 
-    base64Data: string, 
-    mimeTypeStr: string, 
-    audioBufferObj: AudioBuffer
+    features: AudioFeatures,
+    base64Data: string,
+    mimeTypeStr: string,
+    audioBufferObj: AudioBuffer,
   ) => {
     setRawAudioFeatures(features);
     setBase64AudioData(base64Data);
@@ -110,8 +128,8 @@ export default function App() {
         body: JSON.stringify({
           features,
           base64Audio: base64Data,
-          mimeType: mimeTypeStr
-        })
+          mimeType: mimeTypeStr,
+        }),
       });
 
       if (!response.ok) {
@@ -125,22 +143,29 @@ export default function App() {
 
       // Instantly inject AI coefficients to Web Audio filters
       updateDspNodeParameters(data.masteringPlan, isDspActive);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setAnalyzingState({ loading: false, error: err.message || "Could not analyze the audio." });
+      setAnalyzingState({
+        loading: false,
+        error: getErrorMessage(err, "Could not analyze the audio."),
+      });
     } finally {
-      setAnalyzingState(prev => ({ ...prev, loading: false }));
+      setAnalyzingState((prev) => ({ ...prev, loading: false }));
     }
   };
 
   const handleClearAudio = () => {
     // Cease active playing units
     if (sourceNodeRef.current) {
-      try { sourceNodeRef.current.stop(); } catch(e){}
+      try {
+        sourceNodeRef.current.stop();
+      } catch (_e) {}
       sourceNodeRef.current = null;
     }
     if (audioContextRef.current) {
-      try { audioContextRef.current.close(); } catch(e){}
+      try {
+        audioContextRef.current.close();
+      } catch (_e) {}
       audioContextRef.current = null;
     }
     if (animationFrameIdRef.current) {
@@ -164,8 +189,8 @@ export default function App() {
 
   // Build the live Web Audio Master Chain:
   // Source -> High-pass filter -> Low-pass filter -> Bass EQ -> Mid EQ -> Treble EQ -> Compressor -> Makeup Gain -> Spectral Analyser -> Output Destination
-  const initAudioChain = async (buffer: AudioBuffer) => {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const initAudioChain = async (_buffer: AudioBuffer) => {
+    const ctx = createAudioContext();
     audioContextRef.current = ctx;
 
     const highpass = ctx.createBiquadFilter();
@@ -220,9 +245,16 @@ export default function App() {
 
   // Instant hardware settings update logic
   const updateDspNodeParameters = (plan: MasteringPlan, dspEnabled: boolean) => {
-    if (!gainNodeRef.current || !highpassNodeRef.current || !lowpassNodeRef.current || 
-        !bassEQNodeRef.current || !midEQNodeRef.current || !trebleEQNodeRef.current || 
-        !compressorNodeRef.current) return;
+    if (
+      !gainNodeRef.current ||
+      !highpassNodeRef.current ||
+      !lowpassNodeRef.current ||
+      !bassEQNodeRef.current ||
+      !midEQNodeRef.current ||
+      !trebleEQNodeRef.current ||
+      !compressorNodeRef.current
+    )
+      return;
 
     const ctx = audioContextRef.current;
     if (!ctx) return;
@@ -231,7 +263,7 @@ export default function App() {
 
     if (dspEnabled) {
       // Linear makeup gain
-      const linearGain = Math.pow(10, plan.gainDb / 20);
+      const linearGain = 10 ** (plan.gainDb / 20);
       gainNodeRef.current.gain.linearRampToValueAtTime(linearGain, now + 0.05);
 
       // Highpass (sub rumbles low-cut cutoff)
@@ -265,7 +297,7 @@ export default function App() {
         compressorNodeRef.current.threshold.setValueAtTime(plan.compressorThreshold, now);
         compressorNodeRef.current.ratio.setValueAtTime(plan.compressorRatio, now);
         compressorNodeRef.current.attack.setValueAtTime(0.012, now);
-        compressorNodeRef.current.release.setValueAtTime(0.220, now);
+        compressorNodeRef.current.release.setValueAtTime(0.22, now);
         compressorNodeRef.current.knee.setValueAtTime(25, now);
       } else {
         compressorNodeRef.current.ratio.setValueAtTime(1.0, now); // clean bypass
@@ -290,7 +322,7 @@ export default function App() {
   };
 
   // Interactive precision timing progress loop & canvas visual renderer
-  const playTicker = useRef<number | null>(null);
+  const _playTicker = useRef<number | null>(null);
 
   const drawVisualizer = () => {
     if (!canvasRef.current || !analyserNodeRef.current) return;
@@ -336,7 +368,7 @@ export default function App() {
 
       // Draw active colorful bars representing frequency bands
       const barWidth = (width / bufferLength) * 2.8;
-      let barHeight;
+      let barHeight: number;
       let bx = 0;
 
       // Glow linear gradient
@@ -359,7 +391,7 @@ export default function App() {
       ctx.beginPath();
       ctx.lineWidth = 1.8;
       ctx.strokeStyle = "rgba(255, 255, 255, 0.45)";
-      
+
       const sliceWidth = width / bufferLength;
       let wx = 0;
 
@@ -379,10 +411,10 @@ export default function App() {
 
       // Trigger standard timeline updates
       if (isPlayingRef.current && rawAudioBufferRef.current) {
-        const elapsed = audioContextRef.current!.currentTime - startCtxTimeRef.current;
+        const elapsed = audioContextRef.current?.currentTime - startCtxTimeRef.current;
         const totalDuration = rawAudioBufferRef.current.duration;
         const rawTime = Math.min(totalDuration, playbackOffsetRef.current + elapsed);
-        
+
         setCurrentTime(rawTime);
         setPlaybackProgress(rawTime / totalDuration);
 
@@ -393,7 +425,9 @@ export default function App() {
           setPlaybackProgress(0);
           playbackOffsetRef.current = 0;
           if (sourceNodeRef.current) {
-            try { sourceNodeRef.current.stop(); } catch(e){}
+            try {
+              sourceNodeRef.current.stop();
+            } catch (_e) {}
             sourceNodeRef.current = null;
           }
         }
@@ -410,7 +444,9 @@ export default function App() {
       await initAudioChain(rawAudioBuffer);
     }
 
-    const ctx = audioContextRef.current!;
+    const ctx = audioContextRef.current;
+    if (!ctx) return;
+
     if (ctx.state === "suspended") {
       await ctx.resume();
     }
@@ -419,12 +455,17 @@ export default function App() {
       // Pause sound channel
       setIsPlaying(false);
       if (sourceNodeRef.current) {
-        try { sourceNodeRef.current.stop(); } catch(e){}
+        try {
+          sourceNodeRef.current.stop();
+        } catch (_e) {}
         sourceNodeRef.current = null;
       }
 
       const elapsed = ctx.currentTime - startCtxTimeRef.current;
-      playbackOffsetRef.current = Math.min(rawAudioBuffer.duration, playbackOffsetRef.current + elapsed);
+      playbackOffsetRef.current = Math.min(
+        rawAudioBuffer.duration,
+        playbackOffsetRef.current + elapsed,
+      );
     } else {
       // Trigger tape play head
       setIsPlaying(true);
@@ -437,7 +478,7 @@ export default function App() {
       startCtxTimeRef.current = ctx.currentTime;
       updateDspNodeParameters(masteringPlan, isDspActive);
 
-      const durationLeft = Math.max(0, rawAudioBuffer.duration - playbackOffsetRef.current);
+      const _durationLeft = Math.max(0, rawAudioBuffer.duration - playbackOffsetRef.current);
       sourceNode.start(0, playbackOffsetRef.current);
 
       // Start rendering frame rates
@@ -452,7 +493,34 @@ export default function App() {
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const pct = Math.max(0, Math.min(1, clickX / rect.width));
-    const targetScrubTime = pct * rawAudioBuffer.duration;
+    seekToTime(pct * rawAudioBuffer.duration);
+  };
+
+  // Keyboard equivalent of dragging the timeline seeker
+  const handleTimelineKeys = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!rawAudioBuffer) return;
+
+    const step = 5; // seconds
+    const current = playbackOffsetRef.current;
+    const keyedTargets: Record<string, number> = {
+      ArrowLeft: current - step,
+      ArrowRight: current + step,
+      Home: 0,
+      End: rawAudioBuffer.duration,
+    };
+
+    const target = keyedTargets[e.key];
+    if (target === undefined) return;
+
+    e.preventDefault();
+    seekToTime(Math.max(0, Math.min(rawAudioBuffer.duration, target)));
+  };
+
+  // Move playback (and any live source node) to an absolute position
+  const seekToTime = (targetScrubTime: number) => {
+    if (!rawAudioBuffer) return;
+
+    const pct = rawAudioBuffer.duration > 0 ? targetScrubTime / rawAudioBuffer.duration : 0;
 
     setPlaybackProgress(pct);
     setCurrentTime(targetScrubTime);
@@ -461,11 +529,15 @@ export default function App() {
     if (isPlaying) {
       // Stop previous playing source, trigger new buffer start from scrub offset
       if (sourceNodeRef.current) {
-        try { sourceNodeRef.current.stop(); } catch(err){}
+        try {
+          sourceNodeRef.current.stop();
+        } catch (_err) {}
         sourceNodeRef.current = null;
       }
 
-      const ctx = audioContextRef.current!;
+      const ctx = audioContextRef.current;
+      if (!ctx) return;
+
       const sourceNode = ctx.createBufferSource();
       sourceNode.buffer = rawAudioBuffer;
       sourceNode.connect(highpassNodeRef.current || ctx.destination);
@@ -478,10 +550,10 @@ export default function App() {
 
   // Manual interactive slider hardware feedback updates
   const handleManualPlanChange = (key: keyof MasteringPlan, value: string | number) => {
-    setMasteringPlan(prev => {
+    setMasteringPlan((prev) => {
       const updated = {
         ...prev,
-        [key]: typeof value === "string" ? parseFloat(value) : value
+        [key]: typeof value === "string" ? parseFloat(value) : value,
       } as MasteringPlan;
 
       // Realtime hot patch parameters updates inside filters
@@ -503,8 +575,8 @@ export default function App() {
         body: JSON.stringify({
           currentPlan: masteringPlan,
           userFeedback: feedbackText,
-          critique: analysisResponse.critique
-        })
+          critique: analysisResponse.critique,
+        }),
       });
 
       if (!response.ok) {
@@ -519,77 +591,46 @@ export default function App() {
         updateDspNodeParameters(data.masteringPlan, isDspActive);
       }
       setUserFeedback("");
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setRefinementState({ loading: false, error: err.message || "Failed to refine plan." });
+      setRefinementState({
+        loading: false,
+        error: getErrorMessage(err, "Failed to refine plan."),
+      });
     } finally {
-      setRefinementState(prev => ({ ...prev, loading: false }));
+      setRefinementState((prev) => ({ ...prev, loading: false }));
     }
-  };
-
-  // Format Helper timestamps
-  const formatSecs = (val: number) => {
-    const mins = Math.floor(val / 60);
-    const secs = Math.floor(val % 60);
-    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
-  };
-
-  // Human File Converter size
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
-  // Safe cleaner markdown renderer without requiring heavy npm parsing libraries
-  const renderMarkdownText = (mdStr: string) => {
-    if (!mdStr) return null;
-    return mdStr.split("\n").map((line, idx) => {
-      const cleanLine = line.trim();
-      if (cleanLine.startsWith("### ")) {
-        return <h4 key={idx} className="text-xs font-mono font-bold text-cyan-400 mt-4 mb-2 tracking-wider flex items-center gap-1.5"><ChevronRight size={12} />{cleanLine.replace("### ", "")}</h4>;
-      }
-      if (cleanLine.startsWith("## ")) {
-        return <h3 key={idx} className="text-sm font-mono font-bold text-indigo-400 mt-5 mb-3 border-b border-slate-800 pb-1 uppercase tracking-wide">{cleanLine.replace("## ", "")}</h3>;
-      }
-      if (cleanLine.startsWith("# ")) {
-        return <h2 key={idx} className="text-base font-mono font-bold text-slate-100 mt-6 mb-4 font-semibold uppercase">{cleanLine.replace("# ", "")}</h2>;
-      }
-      if (cleanLine.startsWith("- ") || cleanLine.startsWith("* ")) {
-        return (
-          <ul key={idx} className="list-disc list-inside text-slate-300 ml-2 py-0.5 text-xs font-sans leading-relaxed">
-            {formatBoldSegments(cleanLine.substring(2))}
-          </ul>
-        );
-      }
-      if (cleanLine === "") return <div key={idx} className="h-2"></div>;
-      return <p key={idx} className="text-slate-300 text-xs font-sans leading-relaxed my-1">{formatBoldSegments(line)}</p>;
-    });
-  };
-
-  const formatBoldSegments = (text: string) => {
-    const segments = text.split(/(\*\*.*?\*\*)/g);
-    return segments.map((seg, i) => {
-      if (seg.startsWith("**") && seg.endsWith("**")) {
-        return <strong key={i} className="text-cyan-300 font-semibold">{seg.slice(2, -2)}</strong>;
-      }
-      return seg;
-    });
   };
 
   // Quick-touch prompt options for instant testing
   const suggestions = [
-    { label: "Add warm tube bass 🔊", prompt: "Add warmer analog low-end presence, boost the bass EQ shelving filters significantly, and keep mids clean." },
-    { label: "Tame acoustic hiss 🧹", prompt: "Filter details of harsh friction hiss on top frequencies. Drop lowpass cut target down to around 11000 - 13000 Hz." },
-    { label: "Studio radio vocals 🎙️", prompt: "Optimize for cozy vocal-forward radio levels. Target mid boost at around 1500Hz with compression makeup." },
-    { label: "Loudness Maximizer ⚡", prompt: "Push makeup gain and threshold limits high with slight dynamics taming to maximize master volume intensity without clipping." },
+    {
+      label: "Add warm tube bass 🔊",
+      prompt:
+        "Add warmer analog low-end presence, boost the bass EQ shelving filters significantly, and keep mids clean.",
+    },
+    {
+      label: "Tame acoustic hiss 🧹",
+      prompt:
+        "Filter details of harsh friction hiss on top frequencies. Drop lowpass cut target down to around 11000 - 13000 Hz.",
+    },
+    {
+      label: "Studio radio vocals 🎙️",
+      prompt:
+        "Optimize for cozy vocal-forward radio levels. Target mid boost at around 1500Hz with compression makeup.",
+    },
+    {
+      label: "Loudness Maximizer ⚡",
+      prompt:
+        "Push makeup gain and threshold limits high with slight dynamics taming to maximize master volume intensity without clipping.",
+    },
   ];
 
   return (
-    <div id="vantage-workspace" className="min-h-screen bg-[#06080b] text-slate-100 p-4 md:p-6 flex flex-col justify-between font-sans">
-      
+    <div
+      id="vantage-workspace"
+      className="min-h-screen bg-[#06080b] text-slate-100 p-4 md:p-6 flex flex-col justify-between font-sans"
+    >
       {/* Dynamic Header */}
       <header className="flex items-center justify-between px-2 h-14 mb-4 border-b border-slate-900">
         <div className="flex items-center gap-3">
@@ -599,9 +640,13 @@ export default function App() {
           <div>
             <span className="text-base font-mono font-bold tracking-tight text-slate-100 flex items-center gap-2">
               VANTAGE AUDIO OS
-              <span className="px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono text-[9px] rounded-full uppercase tracking-widest font-black">PRO</span>
+              <span className="px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono text-[9px] rounded-full uppercase tracking-widest font-black">
+                PRO
+              </span>
             </span>
-            <p className="text-[10px] text-slate-500 font-mono -mt-0.5">Real-time Web Audio API DSP & Gemini AI Mastering Laboratory</p>
+            <p className="text-[10px] text-slate-500 font-mono -mt-0.5">
+              Real-time Web Audio API DSP & Gemini AI Mastering Laboratory
+            </p>
           </div>
         </div>
 
@@ -624,29 +669,36 @@ export default function App() {
 
       {/* Main Bento Grid layout */}
       <main id="bento-space" className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-4">
-        
         {/* Step 1 & AI Playback Deck (col-span-7 row-span-3) */}
-        <div id="master-deck-card" className="col-span-12 md:col-span-7 bg-[#0b0f15] border border-slate-800 rounded-2xl p-6 flex flex-col justify-between overflow-hidden relative shadow-md">
+        <div
+          id="master-deck-card"
+          className="col-span-12 md:col-span-7 bg-[#0b0f15] border border-slate-800 rounded-2xl p-6 flex flex-col justify-between overflow-hidden relative shadow-md"
+        >
           <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 blur-[90px] pointer-events-none"></div>
-          
+
           <div className="relative">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="px-2 py-0.5 bg-cyan-950/40 text-cyan-300 border border-cyan-800/60 rounded font-mono text-[10px] font-bold uppercase tracking-wider">
                   {isPlaying ? "ACTIVE PLAYBACK" : "STANDBY"}
                 </span>
-                <span className="text-slate-500 font-mono text-[10px] tracking-tight">Rack Status: Online</span>
+                <span className="text-slate-500 font-mono text-[10px] tracking-tight">
+                  Rack Status: Online
+                </span>
               </div>
-              
+
               {/* Mechanical bypass switch */}
               {rawAudioBuffer && (
                 <div className="flex items-center gap-2 bg-[#121822] border border-slate-800 p-1 rounded-lg">
-                  <span className={`text-[10px] font-mono font-bold uppercase px-1.5 py-0.5 transition rounded ${
-                    !isDspActive ? "bg-amber-600/20 text-amber-400" : "text-slate-500"
-                  }`}>
+                  <span
+                    className={`text-[10px] font-mono font-bold uppercase px-1.5 py-0.5 transition rounded ${
+                      !isDspActive ? "bg-amber-600/20 text-amber-400" : "text-slate-500"
+                    }`}
+                  >
                     By-Pass
                   </span>
-                  <button 
+                  <button
+                    type="button"
                     onClick={handleToggleDsp}
                     className={`w-9 h-5 rounded-full p-0.5 transition-colors relative ${
                       isDspActive ? "bg-cyan-505 bg-cyan-500" : "bg-slate-700"
@@ -654,13 +706,17 @@ export default function App() {
                     id="bypass-master-switch"
                     title="Toggle Mastering (DSP Processing) or hear Original Raw Audio"
                   >
-                    <div className={`w-4 h-4 bg-slate-950 rounded-full transition-transform ${
-                      isDspActive ? "transform translate-x-4" : ""
-                    }`}></div>
+                    <div
+                      className={`w-4 h-4 bg-slate-950 rounded-full transition-transform ${
+                        isDspActive ? "transform translate-x-4" : ""
+                      }`}
+                    ></div>
                   </button>
-                  <span className={`text-[10px] font-mono font-bold uppercase px-1.5 py-0.5 transition rounded ${
-                    isDspActive ? "bg-cyan-900/40 text-cyan-300" : "text-slate-500"
-                  }`}>
+                  <span
+                    className={`text-[10px] font-mono font-bold uppercase px-1.5 py-0.5 transition rounded ${
+                      isDspActive ? "bg-cyan-900/40 text-cyan-300" : "text-slate-500"
+                    }`}
+                  >
                     AI DSP ON
                   </span>
                 </div>
@@ -672,31 +728,36 @@ export default function App() {
               AI Audio Mastering Deck
             </h2>
             <p className="text-slate-400 text-xs mt-1 max-w-lg leading-relaxed font-sans">
-              Deploy advanced high-fidelity corrective filters and levels makeup. Hear the immediate improvement by engaging the system toggle switch!
+              Deploy advanced high-fidelity corrective filters and levels makeup. Hear the immediate
+              improvement by engaging the system toggle switch!
             </p>
           </div>
 
           <div className="my-5">
             {/* Direct dynamic Waveform and Spectrum View */}
             <div className="h-32 bg-[#0c1015] border border-slate-800 rounded-xl overflow-hidden relative shadow-inner">
-              <canvas 
-                ref={canvasRef} 
-                width={580} 
-                height={128} 
-                className="w-full h-full block"
-              />
+              <canvas ref={canvasRef} width={580} height={128} className="w-full h-full block" />
               {!rawAudioBuffer && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-slate-950/80 text-center">
                   <Sliders className="text-slate-600 animate-bounce mb-2" size={28} />
-                  <p className="text-xs font-mono text-slate-400 tracking-wider">WAITING FOR RAW DIGITAL AUDIO SOURCE...</p>
-                  <p className="text-[10px] text-slate-600 font-sans mt-0.5">Please import a file below or use your device microphone to start.</p>
+                  <p className="text-xs font-mono text-slate-400 tracking-wider">
+                    WAITING FOR RAW DIGITAL AUDIO SOURCE...
+                  </p>
+                  <p className="text-[10px] text-slate-600 font-sans mt-0.5">
+                    Please import a file below or use your device microphone to start.
+                  </p>
                 </div>
               )}
               {rawAudioBuffer && analyzingState.loading && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-slate-950/85 text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-2 border-cyan-400 border-t-transparent mb-2"></div>
-                  <p className="text-xs font-mono text-cyan-400">GEMINI AI ACOUSTIC EXPERT ASSESSING RECORDING...</p>
-                  <p className="text-[10px] text-slate-500 font-sans mt-1">Generating spectral profiles, analyzing hum frequencies, and structuring DSP parameters...</p>
+                  <p className="text-xs font-mono text-cyan-400">
+                    GEMINI AI ACOUSTIC EXPERT ASSESSING RECORDING...
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-sans mt-1">
+                    Generating spectral profiles, analyzing hum frequencies, and structuring DSP
+                    parameters...
+                  </p>
                 </div>
               )}
             </div>
@@ -713,15 +774,23 @@ export default function App() {
                 </div>
 
                 {/* Timeline seeker track */}
-                <div 
+                <div
                   onClick={handleTimelineScrub}
+                  onKeyDown={handleTimelineKeys}
+                  role="slider"
+                  tabIndex={0}
+                  aria-label="Playback position"
+                  aria-valuemin={0}
+                  aria-valuemax={Math.round(rawAudioBuffer.duration)}
+                  aria-valuenow={Math.round(currentTime)}
+                  aria-valuetext={formatSecs(currentTime)}
                   className="h-2 bg-[#0c1015] rounded-full overflow-hidden mb-4 cursor-pointer relative group"
                 >
-                  <div 
+                  <div
                     className="absolute top-0 left-0 bottom-0 bg-gradient-to-r from-cyan-500 to-indigo-500 group-hover:from-cyan-400 group-hover:to-indigo-400 transition-all"
                     style={{ width: `${playbackProgress * 100}%` }}
                   ></div>
-                  <div 
+                  <div
                     className="absolute top-0 bottom-0 w-1 bg-white shadow"
                     style={{ left: `${playbackProgress * 100}%` }}
                   ></div>
@@ -730,24 +799,31 @@ export default function App() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <button
+                      type="button"
                       onClick={togglePlayPause}
                       className="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-slate-950 flex items-center justify-center shadow-lg transition transform active:scale-95"
                       id="play-pause-btn"
                     >
-                      {isPlaying ? <Pause size={18} fill="#090d14" /> : <Play size={18} fill="#090d14" className="translate-x-0.5" />}
+                      {isPlaying ? (
+                        <Pause size={18} fill="#090d14" />
+                      ) : (
+                        <Play size={18} fill="#090d14" className="translate-x-0.5" />
+                      )}
                     </button>
                     <div>
                       <p className="text-xs font-mono font-bold text-slate-200">
                         {rawAudioFeatures?.fileName || "Microphone Capture"}
                       </p>
                       <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                        {formatBytes(rawAudioFeatures?.fileSize || 0)} / {rawAudioFeatures?.mimeType}
+                        {formatBytes(rawAudioFeatures?.fileSize || 0)} /{" "}
+                        {rawAudioFeatures?.mimeType}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex gap-2">
                     <button
+                      type="button"
                       onClick={handleClearAudio}
                       className="flex items-center gap-1 px-2.5 py-1.5 bg-[#171f2c] hover:bg-rose-950/40 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-900/40 rounded-lg transition text-[10px] font-mono"
                       id="bento-clear-audio"
@@ -763,7 +839,7 @@ export default function App() {
 
           {/* Import Source Interface (Direct in-line Bento component) */}
           <div className="relative">
-            <AudioAnalyzerDeck 
+            <AudioAnalyzerDeck
               onAnalysisComplete={handleAnalysisComplete}
               audioBuffer={rawAudioBuffer}
               onClear={handleClearAudio}
@@ -772,7 +848,10 @@ export default function App() {
         </div>
 
         {/* Dynamic Hardware DSP Configurer Box (col-span-12 md:col-span-5 row-span-3) */}
-        <div id="dsp-master-config" className="col-span-12 md:col-span-5 bg-[#0b0f15] border border-slate-800 rounded-2xl p-6 flex flex-col justify-between shadow-md">
+        <div
+          id="dsp-master-config"
+          className="col-span-12 md:col-span-5 bg-[#0b0f15] border border-slate-800 rounded-2xl p-6 flex flex-col justify-between shadow-md"
+        >
           <div>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-mono font-bold text-white flex items-center gap-2">
@@ -785,12 +864,12 @@ export default function App() {
             </div>
 
             <p className="text-[11px] text-slate-400 mt-1 leading-relaxed font-sans mb-5">
-              These precision calculated parameters modify the real-time node network in your browser. Drag or adjust them to fine-tune.
+              These precision calculated parameters modify the real-time node network in your
+              browser. Drag or adjust them to fine-tune.
             </p>
 
             {/* Hardware Fader Layout Stack */}
             <div className="space-y-4">
-              
               {/* Absolute Makeup Volume Gain Slider */}
               <div className="p-3 bg-[#0f141c]/60 border border-slate-800/60 rounded-xl">
                 <div className="flex justify-between items-center text-xs font-mono mb-1">
@@ -798,10 +877,11 @@ export default function App() {
                     Makeup Gain
                   </span>
                   <span className="text-cyan-400 font-bold">
-                    {masteringPlan.gainDb > 0 ? "+" : ""}{masteringPlan.gainDb.toFixed(1)} dB
+                    {masteringPlan.gainDb > 0 ? "+" : ""}
+                    {masteringPlan.gainDb.toFixed(1)} dB
                   </span>
                 </div>
-                <input 
+                <input
                   type="range"
                   min="-12"
                   max="12"
@@ -811,7 +891,9 @@ export default function App() {
                   className="w-full text-cyan-400 accent-cyan-500 h-1 bg-slate-900 rounded-lg cursor-pointer"
                   disabled={!rawAudioBuffer}
                 />
-                <p className="text-[9px] text-slate-500 mt-1">Raises target amplitude floor after high/low dynamic taming cuts.</p>
+                <p className="text-[9px] text-slate-500 mt-1">
+                  Raises target amplitude floor after high/low dynamic taming cuts.
+                </p>
               </div>
 
               {/* Sub Rumble Cut & Hiss Cut Filters */}
@@ -819,9 +901,11 @@ export default function App() {
                 <div className="p-3 bg-[#0f141c]/60 border border-slate-800/60 rounded-xl">
                   <div className="flex justify-between items-center text-xs font-mono mb-1">
                     <span className="text-slate-300 text-[11px]">HPF Low-Cut</span>
-                    <span className="text-indigo-400 text-[10px]">{masteringPlan.highpassHz} Hz</span>
+                    <span className="text-indigo-400 text-[10px]">
+                      {masteringPlan.highpassHz} Hz
+                    </span>
                   </div>
-                  <input 
+                  <input
                     type="range"
                     min="0"
                     max="180"
@@ -837,9 +921,11 @@ export default function App() {
                 <div className="p-3 bg-[#0f141c]/60 border border-slate-800/60 rounded-xl">
                   <div className="flex justify-between items-center text-xs font-mono mb-1">
                     <span className="text-slate-300 text-[11px]">LPF High-Cut</span>
-                    <span className="text-indigo-400 text-[10px]">{masteringPlan.lowpassHz} Hz</span>
+                    <span className="text-indigo-400 text-[10px]">
+                      {masteringPlan.lowpassHz} Hz
+                    </span>
                   </div>
-                  <input 
+                  <input
                     type="range"
                     min="3000"
                     max="20000"
@@ -849,18 +935,24 @@ export default function App() {
                     className="w-full accent-indigo-500 h-1 bg-slate-900 rounded-lg cursor-pointer"
                     disabled={!rawAudioBuffer}
                   />
-                  <p className="text-[8px] text-slate-500 mt-0.5">Cleans high-frequency surface hiss.</p>
+                  <p className="text-[8px] text-slate-500 mt-0.5">
+                    Cleans high-frequency surface hiss.
+                  </p>
                 </div>
               </div>
 
               {/* Dynamic Equalizer EQ Section */}
               <div className="p-3.5 bg-[#0f141c]/60 border border-slate-800/60 rounded-xl">
-                <span className="text-[10px] font-mono font-bold text-indigo-300 uppercase tracking-wider block mb-2">Parametric Equalizer</span>
+                <span className="text-[10px] font-mono font-bold text-indigo-300 uppercase tracking-wider block mb-2">
+                  Parametric Equalizer
+                </span>
                 <div className="space-y-2.5">
                   {/* Bass band */}
                   <div className="flex items-center gap-3">
-                    <span className="w-14 text-[10px] text-slate-400 font-mono">Bass ({masteringPlan.eqBassHz}Hz)</span>
-                    <input 
+                    <span className="w-14 text-[10px] text-slate-400 font-mono">
+                      Bass ({masteringPlan.eqBassHz}Hz)
+                    </span>
+                    <input
                       type="range"
                       min="-9"
                       max="9"
@@ -871,14 +963,17 @@ export default function App() {
                       disabled={!rawAudioBuffer}
                     />
                     <span className="w-12 text-right text-[10px] font-mono text-emerald-400 font-bold">
-                      {masteringPlan.eqBassGain > 0 ? "+" : ""}{masteringPlan.eqBassGain.toFixed(1)} dB
+                      {masteringPlan.eqBassGain > 0 ? "+" : ""}
+                      {masteringPlan.eqBassGain.toFixed(1)} dB
                     </span>
                   </div>
 
                   {/* Mid range band */}
                   <div className="flex items-center gap-3">
-                    <span className="w-14 text-[10px] text-slate-400 font-mono">Mids ({masteringPlan.eqMidHz}Hz)</span>
-                    <input 
+                    <span className="w-14 text-[10px] text-slate-400 font-mono">
+                      Mids ({masteringPlan.eqMidHz}Hz)
+                    </span>
+                    <input
                       type="range"
                       min="-9"
                       max="9"
@@ -889,14 +984,17 @@ export default function App() {
                       disabled={!rawAudioBuffer}
                     />
                     <span className="w-12 text-right text-[10px] font-mono text-blue-400 font-bold">
-                      {masteringPlan.eqMidGain > 0 ? "+" : ""}{masteringPlan.eqMidGain.toFixed(1)} dB
+                      {masteringPlan.eqMidGain > 0 ? "+" : ""}
+                      {masteringPlan.eqMidGain.toFixed(1)} dB
                     </span>
                   </div>
 
                   {/* Treble band */}
                   <div className="flex items-center gap-3">
-                    <span className="w-14 text-[10px] text-slate-400 font-mono">Treble ({masteringPlan.eqTrebleHz}Hz)</span>
-                    <input 
+                    <span className="w-14 text-[10px] text-slate-400 font-mono">
+                      Treble ({masteringPlan.eqTrebleHz}Hz)
+                    </span>
+                    <input
                       type="range"
                       min="-9"
                       max="9"
@@ -907,7 +1005,8 @@ export default function App() {
                       disabled={!rawAudioBuffer}
                     />
                     <span className="w-12 text-right text-[10px] font-mono text-cyan-400 font-bold">
-                      {masteringPlan.eqTrebleGain > 0 ? "+" : ""}{masteringPlan.eqTrebleGain.toFixed(1)} dB
+                      {masteringPlan.eqTrebleGain > 0 ? "+" : ""}
+                      {masteringPlan.eqTrebleGain.toFixed(1)} dB
                     </span>
                   </div>
                 </div>
@@ -916,19 +1015,31 @@ export default function App() {
               {/* Dynamic Range Compressor */}
               <div className="p-3 bg-[#0f141c]/60 border border-slate-800/60 rounded-xl">
                 <div className="flex justify-between items-center text-xs font-mono mb-1.5">
-                  <span className="text-slate-300 font-semibold text-[11px]">Dynamics Compressor</span>
-                  <span className="text-amber-400 text-[10px]">Ratio: {masteringPlan.compressorRatio.toFixed(1)}:1</span>
+                  <span className="text-slate-300 font-semibold text-[11px]">
+                    Dynamics Compressor
+                  </span>
+                  <span className="text-amber-400 text-[10px]">
+                    Ratio: {masteringPlan.compressorRatio.toFixed(1)}:1
+                  </span>
                 </div>
                 <div className="grid grid-cols-2 gap-3 mt-1">
                   <div>
-                    <label className="text-[9px] text-slate-500 font-mono">Threshold (dB)</label>
-                    <input 
+                    <label
+                      htmlFor="compressor-threshold"
+                      className="text-[9px] text-slate-500 font-mono"
+                    >
+                      Threshold (dB)
+                    </label>
+                    <input
                       type="range"
                       min="-50"
                       max="0"
                       step="1"
+                      id="compressor-threshold"
                       value={masteringPlan.compressorThreshold}
-                      onChange={(e) => handleManualPlanChange("compressorThreshold", e.target.value)}
+                      onChange={(e) =>
+                        handleManualPlanChange("compressorThreshold", e.target.value)
+                      }
                       className="w-full accent-amber-500 h-1 bg-slate-900 rounded-lg mt-1"
                       disabled={!rawAudioBuffer || masteringPlan.compressorRatio <= 1.0}
                     />
@@ -938,24 +1049,31 @@ export default function App() {
                   </div>
 
                   <div>
-                    <label className="text-[9px] text-slate-500 font-mono">Compressor Ratio</label>
-                    <input 
+                    <label
+                      htmlFor="compressor-ratio"
+                      className="text-[9px] text-slate-500 font-mono"
+                    >
+                      Compressor Ratio
+                    </label>
+                    <input
                       type="range"
                       min="1.0"
                       max="20.0"
                       step="0.5"
+                      id="compressor-ratio"
                       value={masteringPlan.compressorRatio}
                       onChange={(e) => handleManualPlanChange("compressorRatio", e.target.value)}
                       className="w-full accent-amber-500 h-1 bg-slate-900 rounded-lg mt-1"
                       disabled={!rawAudioBuffer}
                     />
                     <span className="text-[10px] text-slate-400 font-mono block mt-0.5 text-right">
-                      {masteringPlan.compressorRatio <= 1.0 ? "Bypass" : `${masteringPlan.compressorRatio.toFixed(1)}:1`}
+                      {masteringPlan.compressorRatio <= 1.0
+                        ? "Bypass"
+                        : `${masteringPlan.compressorRatio.toFixed(1)}:1`}
                     </span>
                   </div>
                 </div>
               </div>
-
             </div>
           </div>
 
@@ -970,48 +1088,62 @@ export default function App() {
         </div>
 
         {/* Acoustic Diagnostics specs box (col-span-12 md:col-span-4 row-span-3) */}
-        <div id="raw-acoustics-diagnostics" className="col-span-12 md:col-span-4 bg-[#0b0f15] border border-slate-800 rounded-2xl p-6 flex flex-col justify-between shadow-md">
+        <div
+          id="raw-acoustics-diagnostics"
+          className="col-span-12 md:col-span-4 bg-[#0b0f15] border border-slate-800 rounded-2xl p-6 flex flex-col justify-between shadow-md"
+        >
           <div>
             <h2 className="text-lg font-mono font-bold text-white flex items-center gap-2 mb-4">
               <Activity size={18} className="text-emerald-400" />
               SAMPLED SPECTRAL SPECS
             </h2>
             <p className="text-[11px] text-slate-400 mt-1 leading-relaxed font-sans mb-4">
-              These statistical parameters represent scientific client-side acoustic properties parsed directly from decoded buffer arrays in your local context.
+              These statistical parameters represent scientific client-side acoustic properties
+              parsed directly from decoded buffer arrays in your local context.
             </p>
 
             {rawAudioFeatures ? (
               <div className="space-y-4">
-                
                 {/* Audio Health Gauge */}
                 <div className="p-3 bg-slate-900/60 border border-slate-800/60 rounded-xl">
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-[11px] font-mono text-slate-400 uppercase">QUALITY SCORE</span>
-                    <span className="text-sm font-mono font-bold text-emerald-400">{analysisResponse ? `${analysisResponse.score}/100` : "TBD"}</span>
+                    <span className="text-[11px] font-mono text-slate-400 uppercase">
+                      QUALITY SCORE
+                    </span>
+                    <span className="text-sm font-mono font-bold text-emerald-400">
+                      {analysisResponse ? `${analysisResponse.score}/100` : "TBD"}
+                    </span>
                   </div>
                   <div className="w-full bg-[#121822] h-2 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-gradient-to-r from-red-500 via-amber-400 to-emerald-400 h-full transition-all duration-300" 
+                    <div
+                      className="bg-gradient-to-r from-red-500 via-amber-400 to-emerald-400 h-full transition-all duration-300"
                       style={{ width: `${analysisResponse ? analysisResponse.score : 0}%` }}
                     />
                   </div>
-                  <p className="text-[8px] text-slate-500 font-mono mt-1">Calculated via acoustic noise density & gain balance ratios.</p>
+                  <p className="text-[8px] text-slate-500 font-mono mt-1">
+                    Calculated via acoustic noise density & gain balance ratios.
+                  </p>
                 </div>
 
                 {/* DB Level Gauges */}
                 <div className="space-y-2.5">
-                  
                   {/* Maximum volume */}
                   <div>
                     <div className="flex justify-between text-[11px] font-mono text-slate-400 mb-0.5">
                       <span>Peak Volume (dBFS)</span>
-                      <span className={rawAudioFeatures.maxVolumeDb > -1.5 ? "text-rose-400 font-semibold" : "text-slate-200"}>
+                      <span
+                        className={
+                          rawAudioFeatures.maxVolumeDb > -1.5
+                            ? "text-rose-400 font-semibold"
+                            : "text-slate-200"
+                        }
+                      >
                         {rawAudioFeatures.maxVolumeDb.toFixed(1)} dBFS
                       </span>
                     </div>
                     <div className="w-full bg-[#121822] h-1.5 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full ${rawAudioFeatures.maxVolumeDb > -1.5 ? "bg-rose-500" : "bg-cyan-500"}`} 
+                      <div
+                        className={`h-full ${rawAudioFeatures.maxVolumeDb > -1.5 ? "bg-rose-500" : "bg-cyan-500"}`}
                         style={{ width: `${Math.max(0, 100 + rawAudioFeatures.maxVolumeDb)}%` }}
                       />
                     </div>
@@ -1026,8 +1158,8 @@ export default function App() {
                       </span>
                     </div>
                     <div className="w-full bg-[#121822] h-1.5 rounded-full overflow-hidden">
-                      <div 
-                        className="bg-indigo-500 h-full" 
+                      <div
+                        className="bg-indigo-500 h-full"
                         style={{ width: `${Math.max(0, 100 + rawAudioFeatures.avgVolumeDb)}%` }}
                       />
                     </div>
@@ -1037,37 +1169,51 @@ export default function App() {
                   <div>
                     <div className="flex justify-between text-[11px] font-mono text-slate-400 mb-0.5">
                       <span>Estimated Backdrop Noise Floor</span>
-                      <span className={rawAudioFeatures.estimatedNoiseFloorDb > -45 ? "text-amber-400" : "text-emerald-400"}>
+                      <span
+                        className={
+                          rawAudioFeatures.estimatedNoiseFloorDb > -45
+                            ? "text-amber-400"
+                            : "text-emerald-400"
+                        }
+                      >
                         {rawAudioFeatures.estimatedNoiseFloorDb.toFixed(1)} dBFS
                       </span>
                     </div>
                     <div className="w-full bg-[#121822] h-1.5 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full ${rawAudioFeatures.estimatedNoiseFloorDb > -45 ? "bg-amber-500" : "bg-emerald-500"}`} 
-                        style={{ width: `${Math.max(0, 100 + rawAudioFeatures.estimatedNoiseFloorDb)}%` }}
+                      <div
+                        className={`h-full ${rawAudioFeatures.estimatedNoiseFloorDb > -45 ? "bg-amber-500" : "bg-emerald-500"}`}
+                        style={{
+                          width: `${Math.max(0, 100 + rawAudioFeatures.estimatedNoiseFloorDb)}%`,
+                        }}
                       />
                     </div>
                   </div>
 
                   {/* Clipping indicator */}
                   <div className="flex items-center justify-between p-2.5 bg-[#121822] border border-slate-800 rounded-lg">
-                    <span className="text-[10px] font-mono text-slate-400 uppercase">Digital Clipping Detected:</span>
-                    <span className={`px-2 py-0.5 font-mono text-[9px] rounded font-bold uppercase border ${
-                      rawAudioFeatures.clippingDetected 
-                        ? "bg-rose-950/40 text-rose-300 border-rose-950 animate-pulse" 
-                        : "bg-emerald-950/40 text-emerald-300 border-emerald-950"
-                    }`}>
+                    <span className="text-[10px] font-mono text-slate-400 uppercase">
+                      Digital Clipping Detected:
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 font-mono text-[9px] rounded font-bold uppercase border ${
+                        rawAudioFeatures.clippingDetected
+                          ? "bg-rose-950/40 text-rose-300 border-rose-950 animate-pulse"
+                          : "bg-emerald-950/40 text-emerald-300 border-emerald-950"
+                      }`}
+                    >
                       {rawAudioFeatures.clippingDetected ? "CLIPPING WARNING" : "SAFE / BALANCED"}
                     </span>
                   </div>
 
                   {/* Identified peaks */}
                   <div>
-                    <span className="text-[9px] text-slate-500 font-mono uppercase tracking-wider block mb-1">Identified Frequency Resonance Peak Bands</span>
+                    <span className="text-[9px] text-slate-500 font-mono uppercase tracking-wider block mb-1">
+                      Identified Frequency Resonance Peak Bands
+                    </span>
                     <div className="flex flex-wrap gap-1.5">
-                      {rawAudioFeatures.frequencyPeaks.map((peak, idx) => (
-                        <span 
-                          key={idx} 
+                      {rawAudioFeatures.frequencyPeaks.map((peak) => (
+                        <span
+                          key={peak}
                           className="px-2 py-0.5 bg-[#121822] border border-slate-800 text-[10px] font-mono rounded text-slate-300"
                         >
                           {peak} Hz
@@ -1075,24 +1221,30 @@ export default function App() {
                       ))}
                     </div>
                   </div>
-
                 </div>
-
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center p-8 border border-dashed border-slate-800 rounded-xl bg-slate-950/40 text-center min-h-[180px]">
                 <Activity size={24} className="text-slate-700 mb-2" />
-                <p className="text-[10px] font-mono text-slate-600 tracking-wider">SPECS RACK STANDBY</p>
-                <p className="text-[9px] text-slate-600 font-sans leading-relaxed mt-0.5">Statistical measurements will render here dynamically.</p>
+                <p className="text-[10px] font-mono text-slate-600 tracking-wider">
+                  SPECS RACK STANDBY
+                </p>
+                <p className="text-[9px] text-slate-600 font-sans leading-relaxed mt-0.5">
+                  Statistical measurements will render here dynamically.
+                </p>
               </div>
             )}
           </div>
 
           <div className="border-t border-slate-805 border-slate-900 pt-4 mt-4">
-            <span className="text-[9px] font-mono font-bold text-slate-500 tracking-wide block mb-1 uppercase">Sample Hardware Constraints</span>
+            <span className="text-[9px] font-mono font-bold text-slate-500 tracking-wide block mb-1 uppercase">
+              Sample Hardware Constraints
+            </span>
             <div className="flex justify-between text-[10px] font-mono text-slate-400">
               <span>Sample Rate</span>
-              <span>{rawAudioFeatures ? `${rawAudioFeatures.sampleRate} Hz` : "44100 Hz Reference"}</span>
+              <span>
+                {rawAudioFeatures ? `${rawAudioFeatures.sampleRate} Hz` : "44100 Hz Reference"}
+              </span>
             </div>
             <div className="flex justify-between text-[10px] font-mono text-slate-400 mt-1">
               <span>Total Duration</span>
@@ -1102,17 +1254,20 @@ export default function App() {
         </div>
 
         {/* AI Critique, Technical Markdown Report & Refinement Unit (col-span-12 md:col-span-8 row-span-3) */}
-        <div id="ai-diagnostics-report-card" className="col-span-12 md:col-span-8 bg-[#0b0f15] border border-slate-800 rounded-2xl p-6 overflow-hidden flex flex-col justify-between shadow-md">
+        <div
+          id="ai-diagnostics-report-card"
+          className="col-span-12 md:col-span-8 bg-[#0b0f15] border border-slate-800 rounded-2xl p-6 overflow-hidden flex flex-col justify-between shadow-md"
+        >
           <div className="flex flex-col h-full">
-            
             {/* Custom Tab Panel bar */}
             <div className="flex items-center justify-between border-b border-slate-900 pb-3 mb-4">
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={() => setActiveReportTab("critique")}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition ${
-                    activeReportTab === "critique" 
-                      ? "bg-slate-800 text-cyan-300 border border-slate-700" 
+                    activeReportTab === "critique"
+                      ? "bg-slate-800 text-cyan-300 border border-slate-700"
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                   id="tab-critique-btn"
@@ -1121,10 +1276,11 @@ export default function App() {
                   Diagnostic Critique
                 </button>
                 <button
+                  type="button"
                   onClick={() => setActiveReportTab("markdown")}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition ${
-                    activeReportTab === "markdown" 
-                      ? "bg-slate-800 text-cyan-300 border border-slate-700" 
+                    activeReportTab === "markdown"
+                      ? "bg-slate-800 text-cyan-300 border border-slate-700"
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                   id="tab-report-btn"
@@ -1133,10 +1289,11 @@ export default function App() {
                   Deep Technical Report
                 </button>
                 <button
+                  type="button"
                   onClick={() => setActiveReportTab("studio")}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition ${
-                    activeReportTab === "studio" 
-                      ? "bg-slate-800 text-cyan-300 border border-slate-700" 
+                    activeReportTab === "studio"
+                      ? "bg-slate-800 text-cyan-300 border border-slate-700"
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                   id="tab-studio-btn"
@@ -1149,12 +1306,13 @@ export default function App() {
                 </button>
               </div>
 
-              <span className="text-[10px] text-slate-500 font-mono md:inline hidden">Gemini AI Model: gemini-3.7-flash</span>
+              <span className="text-[10px] text-slate-500 font-mono md:inline hidden">
+                Gemini AI Model: gemini-3.7-flash
+              </span>
             </div>
 
             {/* Display contents */}
             <div className="flex-1 overflow-y-auto pr-1 max-h-[300px]">
-              
               {/* TAB 1: Real-time diagnostic split details critique */}
               {activeReportTab === "critique" && (
                 <div>
@@ -1162,33 +1320,57 @@ export default function App() {
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="p-3 bg-[#111721] border border-slate-800 rounded-xl">
-                          <span className="text-[10px] font-mono text-cyan-400 font-bold tracking-wider block mb-1 uppercase">⚡ Tone & Tape Hiss</span>
-                          <p className="text-xs text-slate-350 leading-relaxed font-sans">{analysisResponse.critique.hiss}</p>
+                          <span className="text-[10px] font-mono text-cyan-400 font-bold tracking-wider block mb-1 uppercase">
+                            ⚡ Tone & Tape Hiss
+                          </span>
+                          <p className="text-xs text-slate-350 leading-relaxed font-sans">
+                            {analysisResponse.critique.hiss}
+                          </p>
                         </div>
                         <div className="p-3 bg-[#111721] border border-slate-800 rounded-xl">
-                          <span className="text-[10px] font-mono text-emerald-400 font-bold tracking-wider block mb-1 uppercase">🔊 Low Hum Resonances</span>
-                          <p className="text-xs text-slate-350 leading-relaxed font-sans">{analysisResponse.critique.hum}</p>
+                          <span className="text-[10px] font-mono text-emerald-400 font-bold tracking-wider block mb-1 uppercase">
+                            🔊 Low Hum Resonances
+                          </span>
+                          <p className="text-xs text-slate-350 leading-relaxed font-sans">
+                            {analysisResponse.critique.hum}
+                          </p>
                         </div>
                         <div className="p-3 bg-[#111721] border border-slate-800 rounded-xl">
-                          <span className="text-[10px] font-mono text-rose-400 font-bold tracking-wider block mb-1 uppercase">🚨 Saturation & Clipping</span>
-                          <p className="text-xs text-slate-350 leading-relaxed font-sans">{analysisResponse.critique.clipping}</p>
+                          <span className="text-[10px] font-mono text-rose-400 font-bold tracking-wider block mb-1 uppercase">
+                            🚨 Saturation & Clipping
+                          </span>
+                          <p className="text-xs text-slate-350 leading-relaxed font-sans">
+                            {analysisResponse.critique.clipping}
+                          </p>
                         </div>
                         <div className="p-3 bg-[#111721] border border-slate-800 rounded-xl">
-                          <span className="text-[10px] font-mono text-indigo-400 font-bold tracking-wider block mb-1 uppercase">📊 Sound Stage Dynamics</span>
-                          <p className="text-xs text-slate-350 leading-relaxed font-sans">{analysisResponse.critique.dynamicRange}</p>
+                          <span className="text-[10px] font-mono text-indigo-400 font-bold tracking-wider block mb-1 uppercase">
+                            📊 Sound Stage Dynamics
+                          </span>
+                          <p className="text-xs text-slate-350 leading-relaxed font-sans">
+                            {analysisResponse.critique.dynamicRange}
+                          </p>
                         </div>
                       </div>
 
                       <div className="p-3.5 bg-slate-900/45 border border-slate-800/80 rounded-xl text-xs flex gap-2">
-                        <span className="text-indigo-400 font-bold font-mono shrink-0">Engineer Summary:</span>
-                        <p className="text-slate-300 leading-relaxed font-sans">{analysisResponse.critique.generalComments}</p>
+                        <span className="text-indigo-400 font-bold font-mono shrink-0">
+                          Engineer Summary:
+                        </span>
+                        <p className="text-slate-300 leading-relaxed font-sans">
+                          {analysisResponse.critique.generalComments}
+                        </p>
                       </div>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center p-12 text-center text-slate-600 font-mono select-none">
                       <ShieldAlert size={26} className="text-slate-700 mb-2" />
                       <p className="text-xs tracking-wider uppercase">NO ANALYTICAL DATA FOUND</p>
-                      <p className="text-[10px] text-slate-650 font-sans mt-0.5 leading-relaxed">Submit raw audio. Gemini will generate deep diagnostic feedback on highfrequency hiss, humming resonances, clipping thresholds, and vocal focus ranges.</p>
+                      <p className="text-[10px] text-slate-650 font-sans mt-0.5 leading-relaxed">
+                        Submit raw audio. Gemini will generate deep diagnostic feedback on
+                        highfrequency hiss, humming resonances, clipping thresholds, and vocal focus
+                        ranges.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1199,13 +1381,17 @@ export default function App() {
                 <div className="bg-[#0b0e12] border border-slate-900 rounded-xl p-4 font-mono leading-relaxed max-w-full overflow-x-hidden">
                   {analysisResponse ? (
                     <div className="prose prose-invert prose-xs max-w-none text-slate-300">
-                      {renderMarkdownText(analysisResponse.reportMarkdown)}
+                      <MarkdownReport markdown={analysisResponse.reportMarkdown} />
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center p-12 text-center text-slate-600 font-mono select-none">
                       <FileText size={26} className="text-slate-700 mb-2" />
-                      <p className="text-xs tracking-wider uppercase">NO WRITTEN REPORT GENERATED</p>
-                      <p className="text-[10px] text-slate-650 font-sans mt-0.5">Please import/record and allow the model to analyze your acoustic structure.</p>
+                      <p className="text-xs tracking-wider uppercase">
+                        NO WRITTEN REPORT GENERATED
+                      </p>
+                      <p className="text-[10px] text-slate-650 font-sans mt-0.5">
+                        Please import/record and allow the model to analyze your acoustic structure.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1217,11 +1403,14 @@ export default function App() {
                   {analysisResponse ? (
                     <>
                       <div className="p-3.5 bg-[#0f141c]/80 border border-slate-800 rounded-xl">
-                        <span className="text-xs font-mono font-bold text-slate-300 block mb-2">💡 Quick Adapt Shortcut Presets</span>
+                        <span className="text-xs font-mono font-bold text-slate-300 block mb-2">
+                          💡 Quick Adapt Shortcut Presets
+                        </span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {suggestions.map((s, idx) => (
+                          {suggestions.map((s) => (
                             <button
-                              key={idx}
+                              type="button"
+                              key={s.label}
                               onClick={() => handleRefineMastering(s.prompt)}
                               className="px-3 py-2 bg-[#17202d] hover:bg-[#1e2a3c] border border-slate-800 text-slate-300 text-left text-[11px] font-mono rounded-lg transition-all hover:-translate-y-0.5 active:translate-y-0 text-ellipsis truncate"
                               disabled={refinementState.loading}
@@ -1239,14 +1428,25 @@ export default function App() {
                       )}
 
                       <div className="p-3 bg-slate-950/40 border border-slate-800 rounded-xl">
-                        <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest block mb-1">Active Mastering Target Plan:</span>
+                        <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest block mb-1">
+                          Active Mastering Target Plan:
+                        </span>
                         <p className="text-xs font-sans text-slate-300 leading-relaxed font-semibold">
-                          Gain: <span className="text-cyan-400">{masteringPlan.gainDb > 0 ? "+" : ""}{masteringPlan.gainDb}dB</span>, 
-                          HPF Cutoff: <span className="text-indigo-400">{masteringPlan.highpassHz}Hz</span>, 
-                          LPF Cutoff: <span className="text-indigo-400">{masteringPlan.lowpassHz}Hz</span>, 
-                          Bass Boost: <span className="text-emerald-400">{masteringPlan.eqBassGain}dB</span>, 
-                          Mid Boost: <span className="text-blue-400">{masteringPlan.eqMidGain}dB</span>, 
-                          Treble Boost: <span className="text-cyan-400">{masteringPlan.eqTrebleGain}dB</span>
+                          Gain:{" "}
+                          <span className="text-cyan-400">
+                            {masteringPlan.gainDb > 0 ? "+" : ""}
+                            {masteringPlan.gainDb}dB
+                          </span>
+                          , HPF Cutoff:{" "}
+                          <span className="text-indigo-400">{masteringPlan.highpassHz}Hz</span>, LPF
+                          Cutoff:{" "}
+                          <span className="text-indigo-400">{masteringPlan.lowpassHz}Hz</span>, Bass
+                          Boost:{" "}
+                          <span className="text-emerald-400">{masteringPlan.eqBassGain}dB</span>,
+                          Mid Boost:{" "}
+                          <span className="text-blue-400">{masteringPlan.eqMidGain}dB</span>, Treble
+                          Boost:{" "}
+                          <span className="text-cyan-400">{masteringPlan.eqTrebleGain}dB</span>
                         </p>
                       </div>
                     </>
@@ -1254,12 +1454,13 @@ export default function App() {
                     <div className="flex flex-col items-center justify-center p-12 text-center text-slate-600 font-mono select-none">
                       <Sparkles size={26} className="text-slate-700 mb-2" />
                       <p className="text-xs tracking-wider uppercase">STUDIO STANDBY</p>
-                      <p className="text-[10px] text-slate-650 font-sans mt-0.5">Acoustic models must be analyzed before entering parameter adaptation modes.</p>
+                      <p className="text-[10px] text-slate-650 font-sans mt-0.5">
+                        Acoustic models must be analyzed before entering parameter adaptation modes.
+                      </p>
                     </div>
                   )}
                 </div>
               )}
-
             </div>
 
             {/* In-context message box */}
@@ -1273,12 +1474,17 @@ export default function App() {
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleRefineMastering(userFeedback);
                     }}
-                    placeholder={refinementState.loading ? "Calculating fresh mastering parameters..." : "Instruct the engineer (e.g. 'Can you drop tape hiss and boost vocal presence?')..."}
+                    placeholder={
+                      refinementState.loading
+                        ? "Calculating fresh mastering parameters..."
+                        : "Instruct the engineer (e.g. 'Can you drop tape hiss and boost vocal presence?')..."
+                    }
                     className="flex-1 bg-[#0c1015] border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 font-sans"
                     disabled={refinementState.loading}
                     id="conversational-feedback-input"
                   />
                   <button
+                    type="button"
                     onClick={() => handleRefineMastering(userFeedback)}
                     className="px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-slate-950 flex items-center justify-center transition font-mono text-xs font-bold shrink-0 gap-1"
                     disabled={refinementState.loading || !userFeedback.trim()}
@@ -1294,27 +1500,27 @@ export default function App() {
                     )}
                   </button>
                 </div>
-                <p className="text-[8px] text-slate-500 font-mono mt-1 text-right">Adaptive models will automatically rewrite DSP equalizer bands and compressors based on your description.</p>
+                <p className="text-[8px] text-slate-500 font-mono mt-1 text-right">
+                  Adaptive models will automatically rewrite DSP equalizer bands and compressors
+                  based on your description.
+                </p>
               </div>
             )}
-
           </div>
         </div>
-
       </main>
 
       {/* Footer system */}
       <footer className="h-10 mt-6 px-2 flex items-center justify-between text-[10px] text-slate-500 font-mono uppercase tracking-widest border-t border-slate-900 pt-2 shrink-0">
         <div className="flex gap-5">
-          <span>Session: <span className="text-emerald-400 font-bold">● ACTIVE</span></span>
+          <span>
+            Session: <span className="text-emerald-400 font-bold">● ACTIVE</span>
+          </span>
           <span>Core Node ID: AIS-WEST-2</span>
           <span>Buffer Sample Limit: 120s max</span>
         </div>
-        <div>
-          Copyright © 2026 Vantage Systems Corp.
-        </div>
+        <div>Copyright © 2026 Vantage Systems Corp.</div>
       </footer>
-
     </div>
   );
 }
