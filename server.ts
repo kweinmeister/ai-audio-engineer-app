@@ -113,12 +113,11 @@ TASK:
       };
 
       const result = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-3.7-flash",
         contents: parts,
         config: {
           responseMimeType: "application/json",
-          responseSchema: responseSchema,
-          temperature: 0.2
+          responseSchema: responseSchema
         }
       });
 
@@ -201,12 +200,11 @@ Recalculate the parameters to perfectly accommodate the user's feedback.
       };
 
       const result = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-3.7-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
-          responseSchema: refineResponseSchema,
-          temperature: 0.1
+          responseSchema: refineResponseSchema
         }
       });
 
