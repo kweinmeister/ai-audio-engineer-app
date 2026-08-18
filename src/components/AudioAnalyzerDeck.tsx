@@ -1,14 +1,26 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Upload, Mic, Trash2, ShieldAlert, Sparkles, AlertCircle, Ban } from "lucide-react";
-import { AudioFeatures } from "../types";
+import { AlertCircle, Mic, Sparkles, Trash2, Upload } from "lucide-react";
+import type React from "react";
+import { useEffect, useRef, useState } from "react";
+import { analyzeAudioBuffer } from "../lib/audioAnalysis";
+import { formatSecs } from "../lib/format";
+import type { AudioFeatures } from "../types";
 
 interface AudioAnalyzerDeckProps {
-  onAnalysisComplete: (features: AudioFeatures, base64Data: string, mimeType: string, audioBuffer: AudioBuffer) => void;
+  onAnalysisComplete: (
+    features: AudioFeatures,
+    base64Data: string,
+    mimeType: string,
+    audioBuffer: AudioBuffer,
+  ) => void;
   audioBuffer: AudioBuffer | null;
   onClear: () => void;
 }
 
-export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onClear }: AudioAnalyzerDeckProps) {
+export default function AudioAnalyzerDeck({
+  onAnalysisComplete,
+  audioBuffer,
+  onClear,
+}: AudioAnalyzerDeckProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -35,15 +47,15 @@ export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onC
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+
+    if (e.dataTransfer.files?.[0]) {
       const file = e.dataTransfer.files[0];
       await processAudioFile(file);
     }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
+    if (e.target.files?.[0]) {
       const file = e.target.files[0];
       await processAudioFile(file);
     }
@@ -55,18 +67,22 @@ export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onC
     setError(null);
     try {
       if (!file.type.startsWith("audio/")) {
-        throw new Error("Invalid file type. Please upload a standard audio file (MP3, WAV, WebM, OGG).");
+        throw new Error(
+          "Invalid file type. Please upload a standard audio file (MP3, WAV, WebM, OGG).",
+        );
       }
 
       // Convert file to ArrayBuffer for Web Audio Decoding
       const arrayBuffer = await file.arrayBuffer();
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      
+
       let decodedBuffer: AudioBuffer;
       try {
         decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-      } catch (decodeErr) {
-        throw new Error("Could not decode audio data. Please ensure it is a valid MP3, WAV, or Ogg.");
+      } catch (_decodeErr) {
+        throw new Error(
+          "Could not decode audio data. Please ensure it is a valid MP3, WAV, or Ogg.",
+        );
       }
 
       // Perform deep client-side audio analysis
@@ -82,90 +98,6 @@ export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onC
     } finally {
       setLoading(false);
     }
-  };
-
-  // Core Web Audio DSP Analytical Calculations
-  const analyzeAudioBuffer = (
-    buffer: AudioBuffer, 
-    fileName: string, 
-    fileSize: number, 
-    mimeType: string
-  ): AudioFeatures => {
-    const duration = buffer.duration;
-    const sampleRate = buffer.sampleRate;
-    const leftChannelData = buffer.getChannelData(0);
-
-    // Calculate peaks, RMS average, and clipping counts
-    let peakValue = 0;
-    let sumOfSquares = 0;
-    let clippingSamplesCount = 0;
-
-    for (let i = 0; i < leftChannelData.length; i++) {
-      const val = leftChannelData[i];
-      const absVal = Math.abs(val);
-      
-      if (absVal > peakValue) {
-        peakValue = absVal;
-      }
-      
-      sumOfSquares += val * val;
-
-      if (absVal >= 0.98) {
-        clippingSamplesCount++;
-      }
-    }
-
-    const rms = Math.sqrt(sumOfSquares / leftChannelData.length);
-    const maxVolumeDb = peakValue > 0 ? 20 * Math.log10(peakValue) : -120;
-    const avgVolumeDb = rms > 0 ? 20 * Math.log10(rms) : -120;
-    const clippingDetected = clippingSamplesCount > 10;
-
-    // Estimate Noise Floor (finding the quietest 100ms segment RMS value)
-    const segmentSize = Math.floor(sampleRate * 0.1); // 100ms segment
-    let minRmsValue = 1.0;
-
-    for (let start = 0; start < leftChannelData.length - segmentSize; start += segmentSize) {
-      let sumSq = 0;
-      for (let j = start; j < start + segmentSize; j++) {
-        sumSq += leftChannelData[j] * leftChannelData[j];
-      }
-      const segRms = Math.sqrt(sumSq / segmentSize);
-      if (segRms < minRmsValue && segRms > 0.0001) {
-        minRmsValue = segRms;
-      }
-    }
-    const estimatedNoiseFloorDb = minRmsValue < 1.0 ? 20 * Math.log10(minRmsValue) : -90;
-
-    // Zero-crossing peak rate or prominent voice frequencies
-    // Let's create an approximate frequency pitch analysis model
-    let zeroCrossings = 0;
-    for (let i = 1; i < leftChannelData.length; i++) {
-      if (leftChannelData[i - 1] < 0 && leftChannelData[i] >= 0) {
-        zeroCrossings++;
-      }
-    }
-    const avgFrequencyHz = Math.min(12000, Math.floor((zeroCrossings * sampleRate) / (2 * leftChannelData.length)));
-
-    // Generate peak bands based on average frequency crossing rate
-    const frequencyPeaks = [
-      Math.floor(avgFrequencyHz * 0.5),
-      avgFrequencyHz,
-      Math.floor(avgFrequencyHz * 1.5),
-      Math.floor(avgFrequencyHz * 3)
-    ].filter(f => f > 30 && f < 18000).sort((a,b) => a-b);
-
-    return {
-      duration,
-      sampleRate,
-      maxVolumeDb,
-      avgVolumeDb,
-      estimatedNoiseFloorDb,
-      clippingDetected,
-      frequencyPeaks: frequencyPeaks.length > 0 ? frequencyPeaks : [120, 1000, 4500, 8000],
-      fileName,
-      fileSize,
-      mimeType: mimeType || "audio/wav"
-    };
   };
 
   const convertBufferToBase64 = (file: File | Blob): Promise<string> => {
@@ -192,9 +124,7 @@ export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onC
       setMicStream(stream);
 
       // Determine correct mime type
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm") 
-        ? "audio/webm" 
-        : "audio/ogg";
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg";
 
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
@@ -210,14 +140,19 @@ export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onC
         try {
           const recordedBlob = new Blob(audioChunksRef.current, { type: mimeType });
           const recordingFile = new File([recordedBlob], `microphone_rec_${Date.now()}.webm`, {
-            type: mimeType
+            type: mimeType,
           });
 
           const arrayBuffer = await recordingFile.arrayBuffer();
           const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
           const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-          const features = analyzeAudioBuffer(decodedBuffer, recordingFile.name, recordingFile.size, recordingFile.type);
+          const features = analyzeAudioBuffer(
+            decodedBuffer,
+            recordingFile.name,
+            recordingFile.size,
+            recordingFile.type,
+          );
           const base64Data = await convertBufferToBase64(recordingFile);
 
           onAnalysisComplete(features, base64Data, recordingFile.type, decodedBuffer);
@@ -242,11 +177,13 @@ export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onC
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
+    if (mediaRecorderRef.current?.state !== "inactive") {
+      mediaRecorderRef.current?.stop();
     }
     if (micStream) {
-      micStream.getTracks().forEach((track) => track.stop());
+      for (const track of micStream.getTracks()) {
+        track.stop();
+      }
       setMicStream(null);
     }
     if (timerRef.current) {
@@ -256,12 +193,6 @@ export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onC
     setIsRecording(false);
   };
 
-  const formatTime = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${s < 10 ? "0" : ""}${s}`;
-  };
-
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -269,19 +200,25 @@ export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onC
   }, []);
 
   return (
-    <div id="audio-analyzer-deck" className="bg-[#121820] border border-slate-800 rounded-xl p-6 shadow-xl relative overflow-hidden">
+    <div
+      id="audio-analyzer-deck"
+      className="bg-[#121820] border border-slate-800 rounded-xl p-6 shadow-xl relative overflow-hidden"
+    >
       <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-emerald-500 via-cyan-500 to-indigo-500"></div>
-      
+
       <div className="flex justify-between items-center mb-5">
         <div>
           <h2 className="text-lg font-mono font-bold text-slate-100 flex items-center gap-2">
             <span className="w-2.5 h-2.5 bg-cyan-400 rounded-full animate-pulse"></span>
             STEP 1: IMPORT AUDIO SOURCE
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">Upload a raw, unmastered audio recording or speak directly into your microphone.</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Upload a raw, unmastered audio recording or speak directly into your microphone.
+          </p>
         </div>
         {audioBuffer && (
           <button
+            type="button"
             onClick={onClear}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/80 hover:bg-rose-950/60 text-slate-300 hover:text-rose-200 border border-slate-700/80 hover:border-rose-900/60 rounded-md transition text-xs font-medium"
             id="clear-audio-btn"
@@ -303,7 +240,9 @@ export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onC
         <div className="flex flex-col items-center justify-center py-10 border border-dashed border-slate-800 rounded-lg bg-slate-950/40">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-cyan-500 border-t-transparent mb-3"></div>
           <p className="text-sm font-mono text-cyan-400">DECIPHERING AUDIO WAVEFORM...</p>
-          <p className="text-xs text-slate-500 mt-1">Reading digital frames, calculating levels, finding clipping peaks...</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Reading digital frames, calculating levels, finding clipping peaks...
+          </p>
         </div>
       ) : isRecording ? (
         <div className="flex flex-col items-center justify-center py-10 border border-dashed border-red-900/60 rounded-lg bg-red-950/10">
@@ -313,10 +252,15 @@ export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onC
               <Mic size={24} className="animate-pulse" />
             </div>
           </div>
-          <p className="text-base font-mono font-bold text-red-400 tracking-wider">RECORDING RAW AUDIO</p>
-          <p className="text-3xl font-mono font-bold text-slate-100 mt-1.5">{formatTime(recordTime)}</p>
+          <p className="text-base font-mono font-bold text-red-400 tracking-wider">
+            RECORDING RAW AUDIO
+          </p>
+          <p className="text-3xl font-mono font-bold text-slate-100 mt-1.5">
+            {formatSecs(recordTime)}
+          </p>
           <p className="text-xs text-slate-400 mt-1">Estimating real-time microphone quality...</p>
           <button
+            type="button"
             onClick={stopRecording}
             className="mt-5 px-6 py-2 bg-red-600 hover:bg-red-500 text-slate-100 font-mono text-xs font-semibold rounded-lg shadow-md transition-all hover:scale-105 border border-red-500"
             id="stop-rec-btn"
@@ -327,14 +271,16 @@ export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onC
       ) : !audioBuffer ? (
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {/* File drag-drop input */}
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: drag and drop is a pointer-only
+              enhancement; the overlaid file input is the keyboard accessible control. */}
           <div
             onDragEnter={handleDrag}
             onDragOver={handleDrag}
             onDragLeave={handleDrag}
             onDrop={handleDrop}
             className={`md:col-span-3 border-2 border-dashed rounded-lg flex flex-col items-center justify-center py-10 px-6 transition text-center relative cursor-pointer ${
-              dragActive 
-                ? "border-cyan-500 bg-cyan-950/10" 
+              dragActive
+                ? "border-cyan-500 bg-cyan-950/10"
                 : "border-slate-800 bg-[#0c1015] hover:border-slate-700 hover:bg-slate-900/40"
             }`}
           >
@@ -348,8 +294,12 @@ export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onC
             <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-slate-400 mb-2.5 border border-slate-800">
               <Upload size={18} />
             </div>
-            <p className="text-xs font-semibold text-slate-300">Drag & drop your file here, or click to browse</p>
-            <p className="text-[10px] text-slate-500 mt-1">Supports MP3, WAV, WebM, OGG, M4A (Limit 15MB)</p>
+            <p className="text-xs font-semibold text-slate-300">
+              Drag & drop your file here, or click to browse
+            </p>
+            <p className="text-[10px] text-slate-500 mt-1">
+              Supports MP3, WAV, WebM, OGG, M4A (Limit 15MB)
+            </p>
           </div>
 
           {/* Micro Recording container */}
@@ -359,10 +309,12 @@ export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onC
                 <Mic size={14} className="text-rose-500" /> Use Microphone
               </h3>
               <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                Directly capture high-fidelity physical acoustic material directly from your local browser context.
+                Directly capture high-fidelity physical acoustic material directly from your local
+                browser context.
               </p>
             </div>
             <button
+              type="button"
               onClick={startRecording}
               className="mt-4 w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-slate-100 font-mono text-xs font-semibold rounded-lg shadow-md transition-all border border-cyan-500/30"
               id="start-rec-btn"
@@ -383,10 +335,14 @@ export default function AudioAnalyzerDeck({ onAnalysisComplete, audioBuffer, onC
                 <p className="text-sm font-mono font-semibold text-slate-200 truncate">
                   {audioBuffer ? "Raw Audio Deck Ready" : "Loading Buffer..."}
                 </p>
-                <span className="px-2 py-0.5 bg-emerald-900/40 border border-emerald-800 text-emerald-300 text-[9px] rounded font-mono uppercase">Decoded</span>
+                <span className="px-2 py-0.5 bg-emerald-900/40 border border-emerald-800 text-emerald-300 text-[9px] rounded font-mono uppercase">
+                  Decoded
+                </span>
               </div>
               <p className="text-[11px] text-slate-500 mt-0.5 font-mono">
-                {audioBuffer.numberOfChannels} {audioBuffer.numberOfChannels === 1 ? "Channel" : "Channels"} / {(audioBuffer.length / 1000).toFixed(0)}k Samples / {audioBuffer.sampleRate} Hz
+                {audioBuffer.numberOfChannels}{" "}
+                {audioBuffer.numberOfChannels === 1 ? "Channel" : "Channels"} /{" "}
+                {(audioBuffer.length / 1000).toFixed(0)}k Samples / {audioBuffer.sampleRate} Hz
               </p>
             </div>
           </div>
