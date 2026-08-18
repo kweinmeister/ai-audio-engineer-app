@@ -1149,7 +1149,7 @@ export default function App() {
                 </button>
               </div>
 
-              <span className="text-[10px] text-slate-500 font-mono md:inline hidden">Gemini AI Model: gemini-3.5-flash</span>
+              <span className="text-[10px] text-slate-500 font-mono md:inline hidden">Gemini AI Model: gemini-3.7-flash</span>
             </div>
 
             {/* Display contents */}
