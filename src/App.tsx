@@ -410,8 +410,8 @@ export default function App() {
       ctx.stroke();
 
       // Trigger standard timeline updates
-      if (isPlayingRef.current && rawAudioBufferRef.current) {
-        const elapsed = audioContextRef.current?.currentTime - startCtxTimeRef.current;
+      if (isPlayingRef.current && rawAudioBufferRef.current && audioContextRef.current) {
+        const elapsed = audioContextRef.current.currentTime - startCtxTimeRef.current;
         const totalDuration = rawAudioBufferRef.current.duration;
         const rawTime = Math.min(totalDuration, playbackOffsetRef.current + elapsed);
 
