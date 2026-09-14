@@ -23,7 +23,7 @@
     "lucide-react": "^1.41.0",
     "motion": "^13.1.1",
     "react": "^19.0.1",
-    "react-dom": "^19.0.1"
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.12",
@@ -33,7 +33,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.4.1",
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
+    "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.5.5",
     "esbuild": "^0.28.2",
     "jsdom": "^30.0.1",
