@@ -4,6 +4,12 @@ import dotenv from "dotenv";
 import express, { type Request, type Response } from "express";
 import { createServer as createViteServer } from "vite";
 import { getErrorMessage } from "./src/lib/errors";
+import {
+  AnalyzeRequestSchema,
+  AnalyzeResponseSchema,
+  RefineRequestSchema,
+  RefineResponseSchema,
+} from "./src/types";
 
 dotenv.config();
 
@@ -17,6 +23,10 @@ const ai = new GoogleGenAI({
   },
 });
 
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+
+import { MASTERING_PLAN_SCHEMA } from "./src/lib/geminiSchema";
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -25,15 +35,23 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+  // API Config route: Expose dynamic server runtime configuration
+  app.get("/api/config", (_req: Request, res: Response) => {
+    res.json({ model: GEMINI_MODEL });
+  });
+
   // API Analyze route
   app.post("/api/analyze", async (req: Request, res: Response) => {
     try {
-      const { features, base64Audio, mimeType } = req.body;
-
-      if (!features) {
-        return res.status(400).json({ error: "No audio key characteristics / features supplied." });
+      const parsedRequest = AnalyzeRequestSchema.safeParse(req.body);
+      if (!parsedRequest.success) {
+        return res.status(400).json({
+          error: "Invalid audio analysis request payload.",
+          details: parsedRequest.error.flatten(),
+        });
       }
 
+      const { features, base64Audio, mimeType } = parsedRequest.data;
       console.log(`Analyzing audio file: ${features.fileName} (${features.fileSize} bytes)`);
 
       // Assemble content parts
@@ -64,11 +82,18 @@ Here are the audio statistical measurements analyzed from the reader engine:
 - Digital Clipping Detected: ${features.clippingDetected ? "YES" : "NO"}
 - Sensed Frequency Peak Bands: ${features.frequencyPeaks.join(", ")} Hz
 
+TARGET INDUSTRY STANDARDS:
+- Streaming Music (Spotify, YouTube, Tidal): Target ~ -14 LUFS with -1.0 dBFS True Peak ceiling.
+- Podcasts & Spoken Word (AES TD1004 / Apple Podcasts): Target -16 LUFS (stereo) / -19 LUFS (mono), highpass low-cut at 60-100 Hz.
+- Broadcast Delivery (EBU R128): Target -23 LUFS.
+- Mastering EQ: Prioritize gentle, broad musical moves (typically ±1 to ±4 dB; up to ±8 dB for corrective recovery).
+- Dynamics: Prioritize transparent leveling (ratio 1.5:1 to 3:1, threshold -15 to -30 dBFS).
+
 TASK:
 1. Provide a professional assessment score (0-100) reflecting recording quality (background noise, mic proximity, frequency balance).
 2. Critique key acoustic items: high-frequency noise (hiss), low-frequency resonance/sub hum (hum), saturation (clipping), volume stability (dynamic range), and raw room comments.
 3. Design a targeted corrective Mastering Plan containing precise Web Audio API DSP parameters to clean, boost, and polish this audio.
-4. Provide a beautifully written Markdown Report summarizing findings and explains how the mastering chain solves the issues.`,
+4. Provide a beautifully written Markdown Report summarizing findings and explains how the mastering chain solves the issues. Format with markdown headings (###), bullet points (- ), and numbered lists (1. ). Write in natural, professional sentence case (do NOT write in ALL CAPS or emit literal escaped sequences like \\N).`,
       });
 
       const responseSchema = {
@@ -102,77 +127,7 @@ TASK:
             },
             required: ["hiss", "hum", "clipping", "dynamicRange", "generalComments"],
           },
-          masteringPlan: {
-            type: Type.OBJECT,
-            properties: {
-              gainDb: {
-                type: Type.NUMBER,
-                description: "Overall level makeup gain (e.g. +3 or -1 dB). Default is 0.",
-              },
-              highpassHz: {
-                type: Type.INTEGER,
-                description:
-                  "Low-cut high-pass filter frequency in Hz. Suggested range of 20-150Hz. Set to 0 if no mud is present.",
-              },
-              lowpassHz: {
-                type: Type.INTEGER,
-                description:
-                  "High-cut low-pass filter frequency in Hz to clear hiss. Set to 20000 to bypass.",
-              },
-              eqBassHz: {
-                type: Type.INTEGER,
-                description: "Center frequency for bass peaking/shelving EQ. E.g., 80 or 100.",
-              },
-              eqBassGain: {
-                type: Type.NUMBER,
-                description: "Bass EQ gain in dB. Limit range from -10 to +10.",
-              },
-              eqMidHz: {
-                type: Type.INTEGER,
-                description: "Center frequency for vocal/mud peaking EQ (typically 800-2000Hz).",
-              },
-              eqMidGain: {
-                type: Type.NUMBER,
-                description: "Mid EQ gain in dB. Limit range from -10 to +10.",
-              },
-              eqTrebleHz: {
-                type: Type.INTEGER,
-                description:
-                  "Center frequency for treble peaking/shelving EQ. E.g., 8000 or 12000.",
-              },
-              eqTrebleGain: {
-                type: Type.NUMBER,
-                description: "Treble EQ gain in dB. Limit range from -10 to +10.",
-              },
-              compressorThreshold: {
-                type: Type.NUMBER,
-                description: "Compression threshold in dBFS (e.g., -15 to -35). Default is -20.",
-              },
-              compressorRatio: {
-                type: Type.NUMBER,
-                description: "Compression ratio. E.g. 1.5 to 4.0. Set to 1.0 to skip compressing.",
-              },
-              verbDescription: {
-                type: Type.STRING,
-                description:
-                  "An encouraging engineer description of exactly how this mastering plan polishes the sound.",
-              },
-            },
-            required: [
-              "gainDb",
-              "highpassHz",
-              "lowpassHz",
-              "eqBassHz",
-              "eqBassGain",
-              "eqMidHz",
-              "eqMidGain",
-              "eqTrebleHz",
-              "eqTrebleGain",
-              "compressorThreshold",
-              "compressorRatio",
-              "verbDescription",
-            ],
-          },
+          masteringPlan: MASTERING_PLAN_SCHEMA,
           reportMarkdown: {
             type: Type.STRING,
             description: "Comprehensive client report explaining technical findings.",
@@ -182,7 +137,7 @@ TASK:
       };
 
       const result = await ai.models.generateContent({
-        model: "gemini-3.7-flash",
+        model: GEMINI_MODEL,
         contents: parts,
         config: {
           responseMimeType: "application/json",
@@ -195,7 +150,11 @@ TASK:
       }
 
       const cleanJson = JSON.parse(result.text.trim());
-      res.json(cleanJson);
+      const validatedResponse = AnalyzeResponseSchema.parse({
+        ...cleanJson,
+        model: GEMINI_MODEL,
+      });
+      res.json(validatedResponse);
     } catch (error) {
       console.error("Gemini audio analysis error:", error);
       res.status(500).json({
@@ -207,12 +166,15 @@ TASK:
   // API Refine route
   app.post("/api/refine", async (req: Request, res: Response) => {
     try {
-      const { currentPlan, userFeedback, critique } = req.body;
-
-      if (!currentPlan || !userFeedback) {
-        return res.status(400).json({ error: "Missing current plan or user feedback to refine." });
+      const parsedRequest = RefineRequestSchema.safeParse(req.body);
+      if (!parsedRequest.success) {
+        return res.status(400).json({
+          error: "Invalid mastering refinement request payload.",
+          details: parsedRequest.error.flatten(),
+        });
       }
 
+      const { currentPlan, userFeedback, critique } = parsedRequest.data;
       console.log(`Refining mastering plan based on feedback: "${userFeedback}"`);
 
       const prompt = `You are an expert Audio Mastering and Mixing Engineer.
@@ -222,11 +184,11 @@ Current Mastering Parameters:
 - Volume Makeup Gain: ${currentPlan.gainDb} dB
 - High-Pass Filter (Low Cut): ${currentPlan.highpassHz} Hz
 - Low-Pass Filter (High Cut): ${currentPlan.lowpassHz} Hz
-- Bass EQ Freq: ${currentPlan.eqBassHz} Hz, Gain: ${currentPlan.eqBassGain} dB
-- Midrange EQ Freq: ${currentPlan.eqMidHz} Hz, Gain: ${currentPlan.eqMidGain} dB
-- Treble EQ Freq: ${currentPlan.eqTrebleHz} Hz, Gain: ${currentPlan.eqTrebleGain} dB
+- Bass EQ: ${currentPlan.eq.bass.hz} Hz, Gain: ${currentPlan.eq.bass.gain} dB
+- Midrange EQ: ${currentPlan.eq.mid.hz} Hz, Gain: ${currentPlan.eq.mid.gain} dB
+- Treble EQ: ${currentPlan.eq.treble.hz} Hz, Gain: ${currentPlan.eq.treble.gain} dB
 - Compressor Threshold: ${currentPlan.compressorThreshold} dB, Ratio: ${currentPlan.compressorRatio}
-- Current explanation: ${currentPlan.verbDescription}
+- Current explanation: ${currentPlan.planDescription}
 
 ${critique ? `Initial acoustic findings:\n- Hiss: ${critique.hiss}\n- Hum: ${critique.hum}\n- Dynamic Range: ${critique.dynamicRange}` : ""}
 
@@ -235,7 +197,7 @@ User Adjustment Instructions:
 
 TASK:
 Recalculate the parameters to perfectly accommodate the user's feedback.
-- If they ask for "more warm/bassy", boost the eqBassGain and/or lower the lowpassHz slightly.
+- If they ask for "more warm/bassy", boost the eq.bass.gain and/or lower the lowpassHz slightly.
 - If they ask for "cleaner", check hum/hiss and adjust filters.
 - If they ask for "louder", boost gainDb or compress more.
 - Set appropriate dB limits (EQ gains between -10dB and +10dB, gainDb between -12dB and +12dB).
@@ -244,43 +206,13 @@ Recalculate the parameters to perfectly accommodate the user's feedback.
       const refineResponseSchema = {
         type: Type.OBJECT,
         properties: {
-          masteringPlan: {
-            type: Type.OBJECT,
-            properties: {
-              gainDb: { type: Type.NUMBER },
-              highpassHz: { type: Type.INTEGER },
-              lowpassHz: { type: Type.INTEGER },
-              eqBassHz: { type: Type.INTEGER },
-              eqBassGain: { type: Type.NUMBER },
-              eqMidHz: { type: Type.INTEGER },
-              eqMidGain: { type: Type.NUMBER },
-              eqTrebleHz: { type: Type.INTEGER },
-              eqTrebleGain: { type: Type.NUMBER },
-              compressorThreshold: { type: Type.NUMBER },
-              compressorRatio: { type: Type.NUMBER },
-              verbDescription: { type: Type.STRING },
-            },
-            required: [
-              "gainDb",
-              "highpassHz",
-              "lowpassHz",
-              "eqBassHz",
-              "eqBassGain",
-              "eqMidHz",
-              "eqMidGain",
-              "eqTrebleHz",
-              "eqTrebleGain",
-              "compressorThreshold",
-              "compressorRatio",
-              "verbDescription",
-            ],
-          },
+          masteringPlan: MASTERING_PLAN_SCHEMA,
         },
         required: ["masteringPlan"],
       };
 
       const result = await ai.models.generateContent({
-        model: "gemini-3.7-flash",
+        model: GEMINI_MODEL,
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -293,7 +225,8 @@ Recalculate the parameters to perfectly accommodate the user's feedback.
       }
 
       const cleanJson = JSON.parse(result.text.trim());
-      res.json(cleanJson);
+      const validatedResponse = RefineResponseSchema.parse(cleanJson);
+      res.json(validatedResponse);
     } catch (error) {
       console.error("Gemini refinement error:", error);
       res.status(500).json({

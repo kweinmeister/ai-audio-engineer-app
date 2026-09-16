@@ -19,3 +19,18 @@ export function createAudioContext(): AudioContext {
 
   return new AudioContextCtor();
 }
+
+/**
+ * Decode an ArrayBuffer into an AudioBuffer using a temporary AudioContext.
+ *
+ * Automatically close the context when decoding completes or fails to prevent
+ * exceeding browser AudioContext limits.
+ */
+export async function decodeAudioDataWithAutoClose(arrayBuffer: ArrayBuffer): Promise<AudioBuffer> {
+  const ctx = createAudioContext();
+  try {
+    return await ctx.decodeAudioData(arrayBuffer);
+  } finally {
+    await ctx.close();
+  }
+}

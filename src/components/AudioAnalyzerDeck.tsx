@@ -2,10 +2,28 @@ import { AlertCircle, Mic, Sparkles, Trash2, Upload } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { analyzeAudioBuffer } from "../lib/audioAnalysis";
-import { createAudioContext } from "../lib/audioContext";
+import { decodeAudioDataWithAutoClose } from "../lib/audioContext";
 import { getErrorMessage } from "../lib/errors";
 import { formatSecs } from "../lib/format";
 import type { AudioFeatures } from "../types";
+
+/**
+ * Determine supported audio MIME type for MediaRecorder.
+ */
+function getSupportedMimeType(): string | undefined {
+  if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") {
+    return undefined;
+  }
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+    "audio/aac",
+  ];
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type));
+}
 
 interface AudioAnalyzerDeckProps {
   onAnalysisComplete: (
@@ -15,7 +33,7 @@ interface AudioAnalyzerDeckProps {
     audioBuffer: AudioBuffer,
   ) => void;
   audioBuffer: AudioBuffer | null;
-  onClear: () => void;
+  onClear?: () => void;
 }
 
 export default function AudioAnalyzerDeck({
@@ -28,8 +46,9 @@ export default function AudioAnalyzerDeck({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const [micStream, setMicStream] = useState<MediaStream | null>(null);
+  const [_micStream, setMicStream] = useState<MediaStream | null>(null);
 
+  const micStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -59,6 +78,7 @@ export default function AudioAnalyzerDeck({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
       const file = e.target.files[0];
+      e.target.value = "";
       await processAudioFile(file);
     }
   };
@@ -68,19 +88,21 @@ export default function AudioAnalyzerDeck({
     setLoading(true);
     setError(null);
     try {
-      if (!file.type.startsWith("audio/")) {
+      const isAudio =
+        file.type.startsWith("audio/") ||
+        /\.(mp3|wav|aiff?|aif|flac|m4a|aac|ogg|oga|opus|webm)$/i.test(file.name);
+      if (!isAudio) {
         throw new Error(
-          "Invalid file type. Please upload a standard audio file (MP3, WAV, WebM, OGG).",
+          "Invalid file type. Please upload a standard audio file (MP3, WAV, AIFF, FLAC, M4A, OGG).",
         );
       }
 
       // Convert file to ArrayBuffer for Web Audio Decoding
       const arrayBuffer = await file.arrayBuffer();
-      const audioCtx = createAudioContext();
 
       let decodedBuffer: AudioBuffer;
       try {
-        decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        decodedBuffer = await decodeAudioDataWithAutoClose(arrayBuffer);
       } catch (_decodeErr) {
         throw new Error(
           "Could not decode audio data. Please ensure it is a valid MP3, WAV, or Ogg.",
@@ -123,12 +145,14 @@ export default function AudioAnalyzerDeck({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = stream;
       setMicStream(stream);
 
       // Determine correct mime type
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg";
+      const mimeType = getSupportedMimeType();
+      const options = mimeType ? { mimeType } : undefined;
 
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -140,14 +164,19 @@ export default function AudioAnalyzerDeck({
       mediaRecorder.onstop = async () => {
         setLoading(true);
         try {
-          const recordedBlob = new Blob(audioChunksRef.current, { type: mimeType });
-          const recordingFile = new File([recordedBlob], `microphone_rec_${Date.now()}.webm`, {
-            type: mimeType,
+          const effectiveMimeType = mimeType || mediaRecorder.mimeType || "audio/webm";
+          const recordedBlob = new Blob(audioChunksRef.current, { type: effectiveMimeType });
+          const ext = effectiveMimeType.includes("mp4")
+            ? "m4a"
+            : effectiveMimeType.includes("ogg")
+              ? "ogg"
+              : "webm";
+          const recordingFile = new File([recordedBlob], `microphone_rec_${Date.now()}.${ext}`, {
+            type: effectiveMimeType,
           });
 
           const arrayBuffer = await recordingFile.arrayBuffer();
-          const audioCtx = createAudioContext();
-          const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+          const decodedBuffer = await decodeAudioDataWithAutoClose(arrayBuffer);
 
           const features = analyzeAudioBuffer(
             decodedBuffer,
@@ -182,12 +211,13 @@ export default function AudioAnalyzerDeck({
     if (mediaRecorderRef.current?.state !== "inactive") {
       mediaRecorderRef.current?.stop();
     }
-    if (micStream) {
-      for (const track of micStream.getTracks()) {
+    if (micStreamRef.current) {
+      for (const track of micStreamRef.current.getTracks()) {
         track.stop();
       }
-      setMicStream(null);
+      micStreamRef.current = null;
     }
+    setMicStream(null);
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -198,6 +228,12 @@ export default function AudioAnalyzerDeck({
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (micStreamRef.current) {
+        for (const track of micStreamRef.current.getTracks()) {
+          track.stop();
+        }
+        micStreamRef.current = null;
+      }
     };
   }, []);
 
@@ -212,13 +248,15 @@ export default function AudioAnalyzerDeck({
         <div>
           <h2 className="text-lg font-mono font-bold text-slate-100 flex items-center gap-2">
             <span className="w-2.5 h-2.5 bg-cyan-400 rounded-full animate-pulse"></span>
-            STEP 1: IMPORT AUDIO SOURCE
+            {audioBuffer ? "ACTIVE AUDIO SOURCE" : "STEP 1: IMPORT AUDIO SOURCE"}
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Upload a raw, unmastered audio recording or speak directly into your microphone.
+            {audioBuffer
+              ? "Audio buffer loaded and ready for acoustic inspection and real-time mastering."
+              : "Upload a raw, unmastered audio recording or speak directly into your microphone."}
           </p>
         </div>
-        {audioBuffer && (
+        {onClear && audioBuffer && (
           <button
             type="button"
             onClick={onClear}
@@ -288,7 +326,7 @@ export default function AudioAnalyzerDeck({
           >
             <input
               type="file"
-              accept="audio/*"
+              accept="audio/*,.mp3,.wav,.aif,.aiff,.flac,.m4a,.aac,.ogg,.webm"
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               onChange={handleFileChange}
               id="audio-file-input"
@@ -300,7 +338,7 @@ export default function AudioAnalyzerDeck({
               Drag & drop your file here, or click to browse
             </p>
             <p className="text-[10px] text-slate-500 mt-1">
-              Supports MP3, WAV, WebM, OGG, M4A (Limit 15MB)
+              Supports MP3, WAV, AIFF, FLAC, M4A, OGG, WebM (Limit 15MB)
             </p>
           </div>
 

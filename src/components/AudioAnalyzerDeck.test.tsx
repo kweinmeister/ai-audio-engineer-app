@@ -33,6 +33,7 @@ describe("AudioAnalyzerDeck", () => {
       />,
     );
 
+    expect(screen.getByText(/ACTIVE AUDIO SOURCE/i)).toBeInTheDocument();
     expect(screen.getByText(/Raw Audio Deck Ready/i)).toBeInTheDocument();
     expect(screen.getByText(/1 Channel \/ 96k Samples \/ 44100 Hz/i)).toBeInTheDocument();
 
@@ -60,5 +61,69 @@ describe("AudioAnalyzerDeck", () => {
     await waitFor(() => {
       expect(onAnalysisComplete).not.toHaveBeenCalled();
     });
+  });
+
+  it("does not render Reset Tape button when onClear is not provided", () => {
+    render(<AudioAnalyzerDeck onAnalysisComplete={vi.fn()} audioBuffer={stubAudioBuffer()} />);
+    expect(screen.queryByRole("button", { name: /Reset Tape/i })).not.toBeInTheDocument();
+  });
+
+  it("resets file input value to allow re-uploading the same file", async () => {
+    const { container } = render(
+      <AudioAnalyzerDeck onAnalysisComplete={vi.fn()} audioBuffer={null} />,
+    );
+
+    const input = container.querySelector<HTMLInputElement>("#audio-file-input");
+    if (!input) throw new Error("file input not rendered");
+
+    const notAudio = new File(["not audio"], "test.txt", { type: "text/plain" });
+    Object.defineProperty(input, "value", {
+      writable: true,
+      value: "C:\\fakepath\\test.txt",
+    });
+
+    fireEvent.change(input, { target: { files: [notAudio] } });
+    expect(input.value).toBe("");
+  });
+
+  it("cleans up microphone tracks when unmounting during active recording", async () => {
+    const stopTrackMock = vi.fn();
+    const mockTrack = { stop: stopTrackMock } as unknown as MediaStreamTrack;
+    const mockStream = {
+      getTracks: () => [mockTrack],
+    } as unknown as MediaStream;
+
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue(mockStream),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    class MockMediaRecorder {
+      state = "recording";
+      start = vi.fn();
+      stop = vi.fn();
+      ondataavailable = null;
+      onstop = null;
+      static isTypeSupported = vi.fn().mockReturnValue(true);
+    }
+    window.MediaRecorder = MockMediaRecorder as unknown as typeof MediaRecorder;
+
+    const { unmount } = render(
+      <AudioAnalyzerDeck onAnalysisComplete={vi.fn()} audioBuffer={null} />,
+    );
+
+    const recordBtn = screen.getByRole("button", { name: /OPEN ACOUSTIC MIC/i });
+    fireEvent.click(recordBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/RECORDING RAW AUDIO/i)).toBeInTheDocument();
+    });
+
+    unmount();
+
+    expect(stopTrackMock).toHaveBeenCalledTimes(1);
   });
 });
