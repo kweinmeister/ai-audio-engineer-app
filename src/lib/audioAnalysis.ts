@@ -8,7 +8,12 @@ import type { AudioFeatures } from "../types";
  */
 export type AnalyzableAudioBuffer = Pick<AudioBuffer, "duration" | "sampleRate" | "getChannelData">;
 
-/** Amplitude at or above which a sample counts as clipped. */
+/**
+ * Amplitude at or above which a sample counts as clipped.
+ * 0.98 ≈ -0.175 dBFS. Aligns with EBU R128 and Apple Digital Masters True Peak
+ * ceiling recommendation (≤ -1.0 dBFS) to guard against inter-sample overs
+ * during lossy transcoding (AAC/MP3).
+ */
 export const CLIPPING_AMPLITUDE_THRESHOLD = 0.98;
 
 /** Number of clipped samples tolerated before clipping is reported. */
@@ -17,7 +22,11 @@ export const CLIPPING_SAMPLE_TOLERANCE = 10;
 /** Level reported for digital silence, in dBFS. */
 export const SILENCE_DB = -120;
 
-/** Level reported when no quiet segment can be measured, in dBFS. */
+/**
+ * Level reported when no quiet segment can be measured, in dBFS.
+ * Professional studio noise floors measure < -75 dBFS, treated home studios
+ * measure -60 to -50 dBFS, and untreated/noisy rooms exceed -45 dBFS.
+ */
 export const DEFAULT_NOISE_FLOOR_DB = -90;
 
 /** Frequency bands reported when the estimate yields nothing usable, in Hz. */
