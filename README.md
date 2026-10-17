@@ -168,8 +168,8 @@ The diagnostic engine and export presets adhere to international audio engineeri
 
 | Delivery Standard | Target Loudness | True Peak Ceiling | High-Pass Recommendation |
 | --- | --- | --- | --- |
-| **Streaming Music** (Spotify, Apple Music, YouTube) | -14.0 LUFS | -1.0 dBFS | 20–35 Hz |
-| **Podcasts and Spoken Word** (AES TD1004, Apple Podcasts) | -16.0 LUFS stereo (-19.0 LUFS mono) | -1.0 dBFS | 60–100 Hz |
+| **Streaming Platforms** | -14.0 LUFS | -1.0 dBFS | 20–35 Hz |
+| **Podcasts and Spoken Word** (AES TD1004) | -16.0 LUFS stereo (-19.0 LUFS mono) | -1.0 dBFS | 60–100 Hz |
 | **Broadcast Delivery** (EBU R128) | -23.0 LUFS | -1.0 dBFS | 30–40 Hz |
 | **CD Audio Mastering** (Red Book PCM) | Unconstrained | -0.1 dBFS | 20 Hz |
 

@@ -10,7 +10,7 @@ export type AnalyzableAudioBuffer = Pick<AudioBuffer, "duration" | "sampleRate" 
 
 /**
  * Amplitude at or above which a sample counts as clipped.
- * 0.98 ≈ -0.175 dBFS. Aligns with EBU R128 and Apple Digital Masters True Peak
+ * 0.98 ≈ -0.175 dBFS. Aligns with EBU R128 and studio delivery True Peak
  * ceiling recommendation (≤ -1.0 dBFS) to guard against inter-sample overs
  * during lossy transcoding (AAC/MP3).
  */

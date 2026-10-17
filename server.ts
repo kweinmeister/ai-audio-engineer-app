@@ -84,8 +84,8 @@ Here are the audio statistical measurements analyzed from the reader engine:
 - Sensed Frequency Peak Bands: ${features.frequencyPeaks.join(", ")} Hz
 
 TARGET INDUSTRY STANDARDS:
-- Streaming Music (Spotify, YouTube, Tidal): Target ~ -14 LUFS with -1.0 dBFS True Peak ceiling.
-- Podcasts & Spoken Word (AES TD1004 / Apple Podcasts): Target -16 LUFS (stereo) / -19 LUFS (mono), highpass low-cut at 60-100 Hz.
+- Streaming Platforms: Target ~ -14 LUFS with -1.0 dBFS True Peak ceiling.
+- Podcasts and Spoken Word (AES TD1004): Target -16 LUFS (stereo) / -19 LUFS (mono), highpass low-cut at 60-100 Hz.
 - Broadcast Delivery (EBU R128): Target -23 LUFS.
 - Mastering EQ: Prioritize gentle, broad musical moves (typically ±1 to ±4 dB; up to ±8 dB for corrective recovery).
 - Dynamics: Prioritize transparent leveling (ratio 1.5:1 to 3:1, threshold -15 to -30 dBFS).
