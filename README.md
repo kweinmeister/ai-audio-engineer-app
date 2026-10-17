@@ -1,6 +1,6 @@
 <div align="center">
 
-# AI Audio Engineer (Vantage Audio OS)
+# AI Audio Engineer
 
 An interactive, studio-grade audio mastering, acoustic critique, and visualization workstation combining real-time browser Web Audio DSP with Gemini 3.8 Flash acoustic intelligence.
 

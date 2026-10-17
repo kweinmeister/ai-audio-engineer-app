@@ -263,7 +263,7 @@ export function ExportModal({
               <Sliders size={16} className={applyDsp ? "text-cyan-400" : "text-slate-600"} />
               <div>
                 <span className="font-mono font-bold text-xs text-slate-200 block">
-                  Apply Vantage DSP Chain
+                  Apply Mastering DSP Chain
                 </span>
                 <span className="text-[10px] text-slate-400 font-sans">
                   Include preamp gain, highpass/lowpass filters, 3-band EQ, and dynamics compressor
