@@ -1,8 +1,27 @@
 {
-  "name": "react-example",
+  "name": "ai-audio-engineer",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "An interactive, studio-grade audio mastering, acoustic critique, and visualization workstation combining real-time browser Web Audio DSP with Gemini AI acoustic intelligence.",
   "type": "module",
+  "license": "Apache-2.0",
+  "author": "Karl Weinmeister",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kweinmeister/ai-audio-engineer-app.git"
+  },
+  "homepage": "https://github.com/kweinmeister/ai-audio-engineer-app#readme",
+  "keywords": [
+    "audio",
+    "mastering",
+    "dsp",
+    "web-audio",
+    "gemini-api",
+    "ai"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
@@ -32,7 +51,7 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@types/express": "^5.0.6",
-    "@types/node": "^26.6.5",
+    "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.6.1",

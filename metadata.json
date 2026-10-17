@@ -1,6 +1,6 @@
 {
   "name": "AI Audio Engineer",
-  "description": "An interactive audio mastering, critique, and visualization tool that provides real-time Web Audio DSP effects alongside Gemini-powered engineering analyses.",
+  "description": "An interactive, studio-grade audio mastering, acoustic critique, and visualization workstation combining real-time browser Web Audio DSP with Gemini AI acoustic intelligence.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
