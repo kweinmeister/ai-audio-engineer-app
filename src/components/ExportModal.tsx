@@ -202,8 +202,7 @@ export function ExportModal({
                   {bitDepth === 24 && <Check size={14} className="text-cyan-400" />}
                 </div>
                 <p className="text-[10px] text-slate-400 leading-tight">
-                  Studio Master standard (-144 dBFS noise floor). Apple Digital Masters & DAW
-                  hand-off.
+                  Studio Master standard (-144 dBFS noise floor). Hi-Res Lossless & DAW hand-off.
                 </p>
               </button>
 
@@ -245,7 +244,7 @@ export function ExportModal({
                 className="w-full px-3 py-2 bg-[#0f141c] border border-slate-800 rounded-lg text-slate-200 text-xs font-mono focus:outline-none focus:border-cyan-500 transition"
               >
                 <option value="streaming">
-                  Streaming Target (-1.0 dBFS Peak Ceiling - Spotify / Apple / EBU)
+                  Streaming Target (-1.0 dBFS Peak Ceiling - Streaming & Broadcast Standards)
                 </option>
                 <option value="cd">Maximum Peak (-0.1 dBFS Peak Ceiling - Red Book CD)</option>
                 <option value="raw">Raw DSP Levels (No Peak Normalization)</option>
@@ -253,7 +252,7 @@ export function ExportModal({
             </div>
             <p className="text-[10px] text-slate-500 mt-1 font-sans">
               -1.0 dBFS protects against inter-sample distortion when files undergo lossy encoding
-              on Spotify or YouTube.
+              on streaming platforms.
             </p>
           </div>
 
