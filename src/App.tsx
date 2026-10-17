@@ -708,7 +708,6 @@ export default function App() {
               : "Engine: Web Audio 32-bit Float"}
           </span>
         </div>
-        <div>AI Audio Engineer • Audio Mastering Workstation</div>
       </footer>
 
       {/* Studio Master Audio Export Modal */}

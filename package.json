@@ -1,8 +1,27 @@
 {
-  "name": "react-example",
+  "name": "ai-audio-engineer",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "An interactive audio mastering, critique, and visualization workstation combining Web Audio DSP with Gemini AI acoustic intelligence.",
   "type": "module",
+  "license": "Apache-2.0",
+  "author": "Karl Weinmeister",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kweinmeister/ai-audio-engineer-app.git"
+  },
+  "homepage": "https://github.com/kweinmeister/ai-audio-engineer-app#readme",
+  "keywords": [
+    "audio",
+    "mastering",
+    "dsp",
+    "web-audio",
+    "gemini-api",
+    "ai"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",

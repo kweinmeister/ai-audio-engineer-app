@@ -98,7 +98,7 @@ flowchart TD
 
 ### Prerequisites
 
-- **Node.js**: Version 20.0.0 or higher.
+- **Node.js**: Version 24.0.0 or higher.
 - **Google Gemini API Key**: Obtain a key from [Google AI Studio](https://aistudio.google.com/).
 
 ### Installation
