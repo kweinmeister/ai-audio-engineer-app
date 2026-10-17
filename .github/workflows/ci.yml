@@ -17,8 +17,8 @@ env:
   NODE_VERSION: '24.x'
 
 jobs:
-  lint:
-    name: Lint and format check
+  verify:
+    name: Lint, test, and build
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -33,46 +33,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Biome check
+      - name: Biome lint and format check
         run: npm run lint
 
-  test:
-    name: Type check and unit tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Type check
+      - name: TypeScript check
         run: npm run typecheck
 
       - name: Unit tests
         run: npm test
 
-  build:
-    name: Build application
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
+      - name: Build application
         run: npm run build

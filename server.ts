@@ -7,6 +7,7 @@ import { getErrorMessage } from "./src/lib/errors";
 import {
   AnalyzeRequestSchema,
   AnalyzeResponseSchema,
+  DEFAULT_GEMINI_MODEL,
   RefineRequestSchema,
   RefineResponseSchema,
 } from "./src/types";
@@ -23,7 +24,7 @@ const ai = new GoogleGenAI({
   },
 });
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
 
 import { MASTERING_PLAN_SCHEMA } from "./src/lib/geminiSchema";
 
@@ -247,7 +248,7 @@ Recalculate the parameters to perfectly accommodate the user's feedback.
     console.log("Serving production static built assets...");
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (_req: Request, res: Response) => {
+    app.get("{*splat}", (_req: Request, res: Response) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

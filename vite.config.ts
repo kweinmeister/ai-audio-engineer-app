@@ -2,10 +2,20 @@ import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
+import { APP_TITLE } from "./src/constants.ts";
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      {
+        name: "html-transform",
+        transformIndexHtml(html: string) {
+          return html.replace(/%APP_TITLE%/g, APP_TITLE);
+        },
+      },
+    ],
     resolve: {
       alias: {
         "@": path.resolve(import.meta.dirname, "."),

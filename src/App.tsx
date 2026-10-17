@@ -23,6 +23,7 @@ import { ExportModal } from "./components/ExportModal";
 import MarkdownReport from "./components/MarkdownReport";
 import { SpectralSpecs } from "./components/SpectralSpecs";
 import { StudioRack } from "./components/StudioRack";
+import { APP_NAME, APP_WORKSPACE_ID } from "./constants";
 import { useAudioPipeline } from "./hooks/useAudioPipeline";
 import { useAudioVisualizer } from "./hooks/useAudioVisualizer";
 import { analyzeAudio, fetchAppConfig, refineMasteringPlan } from "./lib/api";
@@ -241,7 +242,7 @@ export default function App() {
 
   return (
     <div
-      id="audio-engineer-workspace"
+      id={APP_WORKSPACE_ID}
       className="min-h-screen bg-[#06080b] text-slate-100 p-4 md:p-6 flex flex-col justify-between font-sans"
     >
       {/* Header */}
@@ -252,7 +253,7 @@ export default function App() {
           </div>
           <div>
             <span className="text-base font-mono font-bold tracking-tight text-slate-100 flex items-center gap-2">
-              AI AUDIO ENGINEER
+              {APP_NAME.toUpperCase()}
               <span className="px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-mono text-[9px] rounded-full uppercase tracking-widest font-black">
                 PRO
               </span>
