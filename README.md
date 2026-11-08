@@ -34,7 +34,7 @@ Users can audition mastering adjustments in real time with an instant A/B bypass
 - **Automated Acoustic Critique**: Rates overall recording quality on a 0–100 scale, highlights priority flaws, and generates an in-depth technical mastering report.
 - **5-Stage Web Audio DSP Rack**: Provides a tactile, hardware-emulated console featuring high-pass filtering, 3-band parametric EQ, dynamics compression, low-pass hiss filtering, and makeup gain.
 - **Instant A/B Bypass**: Seamlessly audition processed audio against original raw input during active playback without audio glitching or dropouts.
-- **Conversational Plan Refinement**: Chat directly with the AI engineer to alter mastering goals (e.g. *"tame acoustic hiss"*, *"add warm tube bass"*, *"studio radio vocals"*) and instantly recalculate DSP coefficients.
+- **Conversational Plan Refinement**: Chat directly with the AI engineer to alter mastering goals (e.g. _"tame acoustic hiss"_, _"add warm tube bass"_, _"studio radio vocals"_) and instantly recalculate DSP coefficients.
 - **Broadcast-Grade Lossless WAV Export**: Offline client-side rendering with True Peak normalization (-1.0 dBFS for streaming, -0.1 dBFS for CD), selectable 16-bit or 24-bit PCM, and TPDF dither.
 - **Live Waveform and Spectrum Visualizers**: High-refresh time-domain oscilloscope and frequency spectrum visualizer powered by `AnalyserNode`.
 
@@ -84,15 +84,15 @@ flowchart TD
 
 ### Technology Stack
 
-| Layer | Technologies |
-| --- | --- |
-| **Frontend Framework** | [React 19](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Vite 8](https://vite.dev/) |
-| **User Interface** | [Tailwind CSS v4](https://tailwindcss.com/), [Lucide React](https://lucide.dev/), [Motion](https://motion.dev/) |
-| **Audio Processing** | Web Audio API (`AudioContext`, `OfflineAudioContext`, `BiquadFilterNode`, `DynamicsCompressorNode`, `GainNode`, `AnalyserNode`) |
-| **AI Engine** | [`@google/genai`](https://www.npmjs.com/package/@google/genai) SDK with Google Gemini (`gemini-3.8-flash` default) |
-| **Schema Validation** | [Zod](https://zod.dev/) runtime validation on client and server boundaries |
-| **Backend API** | [Express 5](https://expressjs.com/) with Vite development middleware and production static asset serving |
-| **Testing and Quality** | [Biome](https://biomejs.dev/) (linting and formatting), [Vitest](https://vitest.dev/) (unit and integration tests) |
+| Layer                   | Technologies                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend Framework**  | [React 19](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Vite 8](https://vite.dev/)                      |
+| **User Interface**      | [Tailwind CSS v4](https://tailwindcss.com/), [Lucide React](https://lucide.dev/), [Motion](https://motion.dev/)                 |
+| **Audio Processing**    | Web Audio API (`AudioContext`, `OfflineAudioContext`, `BiquadFilterNode`, `DynamicsCompressorNode`, `GainNode`, `AnalyserNode`) |
+| **AI Engine**           | [`@google/genai`](https://www.npmjs.com/package/@google/genai) SDK with Google Gemini (`gemini-3.8-flash` default)              |
+| **Schema Validation**   | [Zod](https://zod.dev/) runtime validation on client and server boundaries                                                      |
+| **Backend API**         | [Express 5](https://expressjs.com/) with Vite development middleware and production static asset serving                        |
+| **Testing and Quality** | [Biome](https://biomejs.dev/) (linting and formatting), [Vitest](https://vitest.dev/) (unit and integration tests)              |
 
 ## Getting Started
 
@@ -104,22 +104,27 @@ flowchart TD
 ### Installation
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/kweinmeister/ai-audio-engineer-app.git
    cd ai-audio-engineer-app
    ```
 
 2. **Install dependencies**:
+
    ```bash
    npm install
    ```
 
 3. **Configure environment variables**:
    Create a `.env.local` file in the project root:
+
    ```bash
    cp .env.example .env.local
    ```
+
    Set your API key in `.env.local`:
+
    ```env
    GEMINI_API_KEY="your_gemini_api_key_here"
    # Optional: customize model (defaults to gemini-3.8-flash)
@@ -130,9 +135,11 @@ flowchart TD
    > When deployed inside Google AI Studio, `GEMINI_API_KEY` and `APP_URL` are injected automatically into the runtime container.
 
 4. **Start the development server**:
+
    ```bash
    npm run dev
    ```
+
    Open your browser at `http://localhost:3000`.
 
 ## Audio DSP Pipeline
@@ -152,30 +159,31 @@ graph LR
     Analyser --> Dest[AudioDestinationNode]
 ```
 
-| Stage | Node Type | Target Range | Acoustic Function |
-| --- | --- | --- | --- |
-| **1. High-Pass Filter** | `BiquadFilterNode` (`highpass`) | 0 – 500 Hz | Cuts subsonic rumble, microphone handling noise, and low plosives |
-| **2. Bass EQ** | `BiquadFilterNode` (`peaking`) | 80 Hz (±18 dB) | Controls body, weight, and low-frequency warmth |
-| **3. Midrange EQ** | `BiquadFilterNode` (`peaking`) | 1,000 Hz (±18 dB) | Sculpts vocal intelligibility, boxiness, and presence |
-| **4. Treble EQ** | `BiquadFilterNode` (`peaking`) | 10,000 Hz (±18 dB) | Imparts acoustic sheen, clarity, and top-end air |
-| **5. Dynamics Compressor** | `DynamicsCompressorNode` | -60 to 0 dBFS (1:1 to 20:1) | Tames unruly peaks and stabilizes volume consistency |
-| **6. Low-Pass Filter** | `BiquadFilterNode` (`lowpass`) | 1,000 – 22,000 Hz | Filters out ultrasonic interference, electrical hiss, and digital noise |
-| **7. Makeup Gain** | `GainNode` | -24 to +24 dB | Elevates master signal to meet target platform loudness standards |
+| Stage                      | Node Type                       | Target Range                | Acoustic Function                                                       |
+| -------------------------- | ------------------------------- | --------------------------- | ----------------------------------------------------------------------- |
+| **1. High-Pass Filter**    | `BiquadFilterNode` (`highpass`) | 0 – 500 Hz                  | Cuts subsonic rumble, microphone handling noise, and low plosives       |
+| **2. Bass EQ**             | `BiquadFilterNode` (`peaking`)  | 80 Hz (±18 dB)              | Controls body, weight, and low-frequency warmth                         |
+| **3. Midrange EQ**         | `BiquadFilterNode` (`peaking`)  | 1,000 Hz (±18 dB)           | Sculpts vocal intelligibility, boxiness, and presence                   |
+| **4. Treble EQ**           | `BiquadFilterNode` (`peaking`)  | 10,000 Hz (±18 dB)          | Imparts acoustic sheen, clarity, and top-end air                        |
+| **5. Dynamics Compressor** | `DynamicsCompressorNode`        | -60 to 0 dBFS (1:1 to 20:1) | Tames unruly peaks and stabilizes volume consistency                    |
+| **6. Low-Pass Filter**     | `BiquadFilterNode` (`lowpass`)  | 1,000 – 22,000 Hz           | Filters out ultrasonic interference, electrical hiss, and digital noise |
+| **7. Makeup Gain**         | `GainNode`                      | -24 to +24 dB               | Elevates master signal to meet target platform loudness standards       |
 
 ## Mastering Standards
 
 The diagnostic engine and export presets adhere to international audio engineering specifications:
 
-| Delivery Standard | Target Loudness | True Peak Ceiling | High-Pass Recommendation |
-| --- | --- | --- | --- |
-| **Streaming Platforms** | -14.0 LUFS | -1.0 dBFS | 20–35 Hz |
-| **Podcasts and Spoken Word** (AES TD1004) | -16.0 LUFS stereo (-19.0 LUFS mono) | -1.0 dBFS | 60–100 Hz |
-| **Broadcast Delivery** (EBU R128) | -23.0 LUFS | -1.0 dBFS | 30–40 Hz |
-| **CD Audio Mastering** (Red Book PCM) | Unconstrained | -0.1 dBFS | 20 Hz |
+| Delivery Standard                         | Target Loudness                     | True Peak Ceiling | High-Pass Recommendation |
+| ----------------------------------------- | ----------------------------------- | ----------------- | ------------------------ |
+| **Streaming Platforms**                   | -14.0 LUFS                          | -1.0 dBFS         | 20–35 Hz                 |
+| **Podcasts and Spoken Word** (AES TD1004) | -16.0 LUFS stereo (-19.0 LUFS mono) | -1.0 dBFS         | 60–100 Hz                |
+| **Broadcast Delivery** (EBU R128)         | -23.0 LUFS                          | -1.0 dBFS         | 30–40 Hz                 |
+| **CD Audio Mastering** (Red Book PCM)     | Unconstrained                       | -0.1 dBFS         | 20 Hz                    |
 
 ## API Endpoints
 
 ### `GET /api/config`
+
 Retrieves the active server runtime configuration, including the configured Gemini model identifier.
 
 **Response Payload**
@@ -186,6 +194,7 @@ Retrieves the active server runtime configuration, including the configured Gemi
 ```
 
 ### `POST /api/analyze`
+
 Submits extracted client-side features along with optional base64 audio data for acoustic diagnosis, scoring, and DSP parameter generation.
 
 **Request Payload**
@@ -212,6 +221,7 @@ Submits extracted client-side features along with optional base64 audio data for
 Returns a validated JSON object with `score` (0–100), `critique` breakdown (hiss, hum, clipping, dynamics, room), `masteringPlan` DSP parameters, `reportMarkdown`, and the `model` identifier used.
 
 ### `POST /api/refine`
+
 Adjusts the active mastering plan using conversational natural language instructions.
 
 **Request Payload**
@@ -228,16 +238,16 @@ Returns updated `masteringPlan` DSP parameters and refined explanation.
 
 ## Quality Checks
 
-| Script | Command | Purpose |
-| --- | --- | --- |
-| **Dev Server** | `npm run dev` | Starts Express server with Vite middleware on port 3000 |
-| **Build Bundle** | `npm run build` | Compiles client assets (`vite build`) and server bundle (`esbuild`) into `dist/` |
-| **Production Start** | `npm start` | Executes production compiled server (`node dist/server.cjs`) |
-| **Lint and Format** | `npm run lint` | Runs Biome linter and formatter validation (`--error-on-warnings`) |
-| **Auto-Format** | `npm run format` | Applies Biome safe fixes and formatting across all codebase files |
-| **Type Check** | `npm run typecheck` | Validates TypeScript types across frontend and backend (`tsc --noEmit`) |
-| **Run Tests** | `npm test` | Runs the full Vitest suite (121 passing tests across 16 test files) |
-| **Watch Tests** | `npm run test:watch` | Runs Vitest in interactive watch mode |
+| Script               | Command              | Purpose                                                                          |
+| -------------------- | -------------------- | -------------------------------------------------------------------------------- |
+| **Dev Server**       | `npm run dev`        | Starts Express server with Vite middleware on port 3000                          |
+| **Build Bundle**     | `npm run build`      | Compiles client assets (`vite build`) and server bundle (`esbuild`) into `dist/` |
+| **Production Start** | `npm start`          | Executes production compiled server (`node dist/server.cjs`)                     |
+| **Lint and Format**  | `npm run lint`       | Runs Biome linter and formatter validation (`--error-on-warnings`)               |
+| **Auto-Format**      | `npm run format`     | Applies Biome safe fixes and formatting across all codebase files                |
+| **Type Check**       | `npm run typecheck`  | Validates TypeScript types across frontend and backend (`tsc --noEmit`)          |
+| **Run Tests**        | `npm test`           | Runs the full Vitest suite (121 passing tests across 16 test files)              |
+| **Watch Tests**      | `npm run test:watch` | Runs Vitest in interactive watch mode                                            |
 
 ## License
 
